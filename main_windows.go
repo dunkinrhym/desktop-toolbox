@@ -26,6 +26,9 @@ const (
 
 func main() {
 	win.InitDPI()
+	if on, out := selfTestRequested(); on {
+		os.Exit(runSelfTest(out))
+	}
 	background := false
 	for _, a := range os.Args[1:] {
 		if a == "--background" || a == "--hidden" {

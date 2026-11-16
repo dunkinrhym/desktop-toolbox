@@ -1,0 +1,121 @@
+name: Windows 冒烟测试（真实 Windows 运行器）
+
+# 在 ubuntu 上用 scripts/build.sh 交叉编译 NSIS 安装包，然后在 windows-latest 上：
+# 静默安装 → 隐藏自检（--selftest）→ 启动程序截图 / 单实例 → 内置 Python 转换 → FFmpeg gdigrab 录屏 → 静默卸载，
+# 并在 Windows 上原生运行 Go 单元测试。截图、日志与通过测试的安装包作为 artifact 上传。
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-windows-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GO_VERSION: "1.27.x"
+  WAILS_VERSION: "v2.17.1"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 安装 NSIS / Wails / 测试用 Python 依赖
+        run: |
+          sudo apt-get update -q && sudo apt-get install -y -q nsis zip unzip
+          go install github.com/wailsapp/wails/v2/cmd/wails@${{ env.WAILS_VERSION }}
+          python3 -m venv "$RUNNER_TEMP/pyenv"
+          "$RUNNER_TEMP/pyenv/bin/pip" install -q pdf2docx==0.5.13 python-docx markdown "PyMuPDF<1.27" "opencv-python-headless<4.13" "numpy<2.4"
+      - name: 构建 Windows 安装包与便携版（scripts/build.sh）
+        env:
+          DT_TEST_PYTHON: ${{ runner.temp }}/pyenv/bin/python
+          TOOLS: ${{ runner.temp }}/tools
+        run: |
+          bash scripts/build.sh
+          mkdir -p out
+          cp "dist/桌面工具箱-Setup-x64.exe" out/DesktopToolbox-Setup-x64.exe
+          cp "dist/桌面工具箱-便携版-x64.zip" out/DesktopToolbox-Portable-x64.zip
+          echo "${GITHUB_SHA}" > out/COMMIT.txt
+          sha256sum out/* | tee out/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-build
+          path: out/*
+          compression-level: 0
+          retention-days: 14
+          if-no-files-found: error
+
+  smoke:
+    needs: build
+    runs-on: windows-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-build
+          path: ${{ runner.temp }}/build
+      - name: 准备 ffprobe（仅用于校验录屏时长与 Go 录屏测试）
+        run: |
+          $zip = "$env:RUNNER_TEMP\ffmpeg-ci.zip"
+          Invoke-WebRequest -Uri 'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip' -OutFile $zip
+          Expand-Archive $zip -DestinationPath "$env:RUNNER_TEMP\ffmpeg-ci"
+          $bin = (Get-ChildItem "$env:RUNNER_TEMP\ffmpeg-ci" -Recurse -Filter ffprobe.exe | Select-Object -First 1).DirectoryName
+          "FFBIN=$bin" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+          & "$bin\ffprobe.exe" -version | Select-Object -First 1
+      - name: 系统信息
+        run: |
+          Get-CimInstance Win32_OperatingSystem | Select-Object Caption, Version, OSArchitecture | Format-List
+          Get-CimInstance Win32_VideoController | Select-Object Name, CurrentHorizontalResolution, CurrentVerticalResolution | Format-List
+          $wv = Get-ItemProperty 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}' -ErrorAction SilentlyContinue
+          "WebView2 runtime: $($wv.pv)"
+          Get-Content "$env:RUNNER_TEMP\build\SHA256SUMS.txt"
+      - name: 冒烟测试（安装 / 自检 / 启动截图 / 单实例 / 转换 / 录屏 / 卸载）
+        id: smoke
+        run: >-
+          pwsh -NoProfile -File tests/windows/smoke.ps1
+          -Installer "$env:RUNNER_TEMP\build\DesktopToolbox-Setup-x64.exe"
+          -OutDir "$env:RUNNER_TEMP\smoke"
+          -FFprobe "$env:FFBIN\ffprobe.exe"
+      - name: Go 单元测试（Windows 原生，使用便携版内置 Python）
+        if: always()
+        run: |
+          $port = "$env:RUNNER_TEMP\portable"
+          Expand-Archive "$env:RUNNER_TEMP\build\DesktopToolbox-Portable-x64.zip" -DestinationPath $port -Force
+          $py = (Get-ChildItem $port -Recurse -Filter python.exe | Select-Object -First 1).FullName
+          "portable python: $py"
+          $env:DT_TEST_PYTHON = $py
+          $env:PATH = "$env:FFBIN;$env:PATH"
+          go vet ./...
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          go test -count=1 -v ./internal/... 2>&1 | Tee-Object -FilePath "$env:RUNNER_TEMP\smoke\go-test.log"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+      - name: 上传截图与日志
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-smoke-results
+          path: ${{ runner.temp }}/smoke
+          retention-days: 14
+      - name: 上传通过测试的安装包
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-tested-installer
+          path: ${{ runner.temp }}/build/*
+          compression-level: 0
+          retention-days: 30
