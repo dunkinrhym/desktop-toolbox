@@ -71,15 +71,19 @@ func runSelfTest(outDir string) int {
 		outDir = filepath.Join(os.TempDir(), "DesktopToolbox-selftest")
 	}
 	_ = os.MkdirAll(outDir, 0o755)
-	var sinks []io.Writer
-	if attached {
-		sinks = append(sinks, os.Stdout)
-	}
+	var sinks bestEffort
 	if f, err := os.Create(filepath.Join(outDir, "selftest.log")); err == nil {
 		defer f.Close()
 		sinks = append(sinks, f)
 	}
-	s := &selfTest{w: io.MultiWriter(sinks...)}
+	if attached {
+		// GUI 程序启动时没有标准输出句柄；附加到父控制台后重新打开 CONOUT$
+		if c, err := os.OpenFile("CONOUT$", os.O_WRONLY, 0); err == nil {
+			defer c.Close()
+			sinks = append(sinks, c)
+		}
+	}
+	s := &selfTest{w: sinks}
 	app := NewApp()
 	s.logf("桌面工具箱 %s 自检  exe=%s", AppVersion, app.exeDir)
 
@@ -350,4 +354,14 @@ func utf16le(s string) string {
 		b = append(b, byte(r), byte(r>>8))
 	}
 	return string(b)
+}
+
+// bestEffort 写入所有目标，忽略单个目标的错误（io.MultiWriter 遇到第一个错误就会停止）。
+type bestEffort []io.Writer
+
+func (b bestEffort) Write(p []byte) (int, error) {
+	for _, w := range b {
+		_, _ = w.Write(p)
+	}
+	return len(p), nil
 }

@@ -38,6 +38,17 @@ function Step([string]$name, [scriptblock]$body) {
   }
 }
 function Assert($cond, [string]$msg) { if (-not $cond) { throw $msg } }
+# 启动进程并限时等待（Start-Process -Wait 会等待所有子进程，且没有超时，容易卡住整个任务）
+function Run-Timed([string]$file, [string[]]$argList, [int]$sec) {
+  $p = if ($argList) { Start-Process -FilePath $file -ArgumentList $argList -PassThru } else { Start-Process -FilePath $file -PassThru }
+  if (-not $p.WaitForExit($sec * 1000)) {
+    Save-Screenshot ("timeout-" + [IO.Path]::GetFileNameWithoutExtension($file) + ".png") | Out-Null
+    try { Stop-Process -Id $p.Id -Force } catch {}
+    throw "$file 在 $sec 秒内没有退出（已强制结束）"
+  }
+  $p.WaitForExit()
+  return $p
+}
 
 Add-Type -AssemblyName System.Drawing
 Add-Type -AssemblyName System.Windows.Forms
@@ -50,6 +61,19 @@ public static class W32 {
   [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
   [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern IntPtr FindWindow(string cls, string title);
   [DllImport("user32.dll")] public static extern int GetSystemMetrics(int i);
+  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
+  [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left, Top, Right, Bottom; }
+  [StructLayout(LayoutKind.Sequential)] struct KEYBDINPUT { public ushort wVk; public ushort wScan; public uint dwFlags; public uint time; public IntPtr dwExtraInfo; }
+  [StructLayout(LayoutKind.Explicit, Size=40)] struct INPUT { [FieldOffset(0)] public uint type; [FieldOffset(8)] public KEYBDINPUT ki; }
+  [DllImport("user32.dll", SetLastError=true)] static extern uint SendInput(uint n, INPUT[] inputs, int size);
+  // 依次按下 vks，再逆序松开；返回成功注入的事件数
+  public static uint Keys(params ushort[] vks) {
+    var list = new System.Collections.Generic.List<INPUT>();
+    foreach (var v in vks) { var i = new INPUT(); i.type = 1; i.ki.wVk = v; list.Add(i); }
+    for (int k = vks.Length - 1; k >= 0; k--) { var i = new INPUT(); i.type = 1; i.ki.wVk = vks[k]; i.ki.dwFlags = 2; list.Add(i); }
+    return SendInput((uint)list.Count, list.ToArray(), Marshal.SizeOf(typeof(INPUT)));
+  }
 }
 '@
 [W32]::SetProcessDPIAware() | Out-Null
@@ -106,7 +130,7 @@ Log ("OS: " + [Environment]::OSVersion.VersionString + "  user=" + $env:USERNAME
 # ------------------------------------------------------------------ 1. 静默安装
 Step 'install (/S)' {
   $sw = [Diagnostics.Stopwatch]::StartNew()
-  $p = Start-Process -FilePath $Installer -ArgumentList '/S' -Wait -PassThru
+  $p = Run-Timed $Installer @('/S') 300
   Assert ($p.ExitCode -eq 0) "安装程序退出码 $($p.ExitCode)"
   foreach ($f in @($Exe, $Python, $Script, $FFmpeg, (Join-Path $InstallDir 'uninstall.exe'),
                    (Join-Path $InstallDir 'resources\python\python312.dll'),
@@ -125,8 +149,9 @@ Step 'install (/S)' {
 # ------------------------------------------------------------------ 2. 隐藏自检（热键 / 剪贴板 / 截屏 / 搜索 / 转换组件）
 Step 'app --selftest' {
   $st = Join-Path $OutDir 'selftest'
-  $p = Start-Process -FilePath $Exe -ArgumentList '--selftest', "--selftest-out=$st" -Wait -PassThru
   $log = Join-Path $st 'selftest.log'
+  try { $p = Run-Timed $Exe @('--selftest', "--selftest-out=$st") 240 }
+  catch { if (Test-Path $log) { Get-Content $log -Encoding utf8 | ForEach-Object { Log "  | $_" } }; throw }
   Assert (Test-Path $log) "没有生成 selftest.log（退出码 $($p.ExitCode)）"
   Get-Content $log -Encoding utf8 | ForEach-Object { Log "  | $_" }
   Assert ($p.ExitCode -eq 0) "selftest 退出码 $($p.ExitCode)"
@@ -141,14 +166,66 @@ Step 'launch + main window' {
   $p.Refresh()
   Assert (-not $p.HasExited) "进程已退出，退出码 $($p.ExitCode)"
   $title = $p.MainWindowTitle
-  $hwnd = [W32]::FindWindow('DesktopToolboxMain', $null)
+  $hwnd = [W32]::FindWindow('DesktopToolboxMain', [NullString]::Value)
   $visible = ($hwnd -ne [IntPtr]::Zero) -and [W32]::IsWindowVisible($hwnd)
   $wv = Get-Process msedgewebview2 -ErrorAction SilentlyContinue
   $shot = Save-Screenshot 'ui-main.png'
   Assert ($title -eq '桌面工具箱') "MainWindowTitle='$title'"
   Assert $visible "主窗口（类 DesktopToolboxMain）不可见"
   Assert ($wv.Count -gt 0) "没有 msedgewebview2 进程（WebView2 未启动）"
+  Assert ($p.MainWindowHandle -eq $hwnd) "MainWindowHandle=$($p.MainWindowHandle) 与 FindWindow(DesktopToolboxMain)=$hwnd 不一致"
   "pid=$($p.Id) title='$title' hwnd=$hwnd visible=$visible webview2 procs=$($wv.Count) ws=$([math]::Round($p.WorkingSet64/1MB))MB; screenshot $shot"
+}
+Step 'global hotkeys (SendInput)' {
+  $hwnd = [W32]::FindWindow('DesktopToolboxMain', [NullString]::Value)
+  Assert ($hwnd -ne [IntPtr]::Zero) "找不到主窗口"
+  $state = { "visible=$([W32]::IsWindowVisible($hwnd)) fg=$([W32]::GetForegroundWindow() -eq $hwnd)" }
+  $notes = @()
+  # Alt+Space：可见且在前台 → 隐藏；否则 → 显示并置前
+  $seenHide = $false; $seenShow = $false
+  for ($i = 0; $i -lt 4 -and -not ($seenHide -and $seenShow); $i++) {
+    $wasShown = [W32]::IsWindowVisible($hwnd) -and ([W32]::GetForegroundWindow() -eq $hwnd)
+    [W32]::Keys(0x12, 0x20) | Out-Null   # Alt+Space
+    Start-Sleep -Milliseconds 1500
+    $vis = [W32]::IsWindowVisible($hwnd); $fg = [W32]::GetForegroundWindow() -eq $hwnd
+    $notes += "Alt+Space#$($i+1): before shown=$wasShown -> $(& $state)"
+    if ($wasShown -and -not $vis) { $seenHide = $true }
+    if (-not $wasShown -and $vis -and $fg) { $seenShow = $true }
+  }
+  $notes | ForEach-Object { Log "  $_" }
+  Assert ($seenHide -and $seenShow) "Alt+Space 未能切换显示/隐藏（hide=$seenHide show=$seenShow）"
+  # 确保主窗口可见，然后 Ctrl+Shift+V → 剪贴板小窗口（440x640）
+  if (-not [W32]::IsWindowVisible($hwnd)) { [W32]::Keys(0x12, 0x20) | Out-Null; Start-Sleep -Milliseconds 1500 }
+  [W32]::Keys(0x11, 0x10, 0x56) | Out-Null   # Ctrl+Shift+V
+  Start-Sleep -Milliseconds 2000
+  $r = New-Object W32+RECT; [W32]::GetWindowRect($hwnd, [ref]$r) | Out-Null
+  $pw = $r.Right - $r.Left; $ph = $r.Bottom - $r.Top
+  Save-Screenshot 'ui-clip-popup.png' | Out-Null
+  Log "  Ctrl+Shift+V: $(& $state) size=${pw}x${ph}"
+  Assert ([W32]::IsWindowVisible($hwnd) -and $pw -lt 700) "剪贴板小窗口未出现（size=${pw}x${ph}）"
+  [W32]::Keys(0x11, 0x10, 0x56) | Out-Null   # 再按一次：小窗口在前台时隐藏
+  Start-Sleep -Milliseconds 1500
+  Log "  Ctrl+Shift+V again: $(& $state)"
+  $popupHidden = -not [W32]::IsWindowVisible($hwnd)
+  # 恢复主窗口
+  [W32]::Keys(0x12, 0x20) | Out-Null; Start-Sleep -Milliseconds 1500
+  [W32]::GetWindowRect($hwnd, [ref]$r) | Out-Null
+  $mw = $r.Right - $r.Left
+  Log "  Alt+Space restore: $(& $state) width=$mw"
+  # Ctrl+Alt+A → 截图遮罩（类 DesktopToolboxOverlay），Esc 取消
+  [W32]::Keys(0x11, 0x12, 0x41) | Out-Null   # Ctrl+Alt+A
+  $ov = [IntPtr]::Zero
+  for ($k = 0; $k -lt 20 -and $ov -eq [IntPtr]::Zero; $k++) { Start-Sleep -Milliseconds 200; $ov = [W32]::FindWindow('DesktopToolboxOverlay', [NullString]::Value) }
+  Assert ($ov -ne [IntPtr]::Zero) "Ctrl+Alt+A 后 4 秒内没有出现截图遮罩"
+  Start-Sleep -Milliseconds 500
+  Save-Screenshot 'ui-screenshot-overlay.png' | Out-Null
+  $ovFg = [W32]::GetForegroundWindow() -eq $ov
+  [W32]::Keys(0x1B) | Out-Null   # Esc
+  $gone = $false
+  for ($k = 0; $k -lt 15 -and -not $gone; $k++) { Start-Sleep -Milliseconds 200; $gone = -not [W32]::IsWindowVisible($ov) }
+  Assert $gone "按 Esc 后截图遮罩没有关闭（遮罩在前台=$ovFg）"
+  Assert ($mw -gt 800) "Alt+Space 后主窗口未恢复正常尺寸（宽 $mw）"
+  "Alt+Space hide+show OK; Ctrl+Shift+V popup ${pw}x${ph} (second press hides=$popupHidden); main restored width=$mw; Ctrl+Alt+A overlay shown (foreground=$ovFg) and closed by Esc"
 }
 Step 'single instance' {
   $first = @(Get-Process DesktopToolbox -ErrorAction SilentlyContinue)
@@ -260,12 +337,14 @@ Step 'ffmpeg gdigrab 3s' {
 # ------------------------------------------------------------------ 6. 静默卸载
 Step 'uninstall (/S)' {
   $un = Join-Path $InstallDir 'uninstall.exe'
-  $p = Start-Process -FilePath $un -ArgumentList '/S' -Wait -PassThru
+  $p = Run-Timed $un @('/S') 120
   # NSIS 卸载程序会把自己复制到临时目录再运行，这里轮询直到安装目录被删除
   $deadline = (Get-Date).AddSeconds(90)
   while ((Test-Path $InstallDir) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 500 }
   Start-Sleep -Seconds 2
-  Assert (-not (Test-Path $InstallDir)) "安装目录仍存在：$((Get-ChildItem -Recurse $InstallDir | Select-Object -First 10 | ForEach-Object FullName) -join ', ')"
+  if (Test-Path -LiteralPath $InstallDir) {
+    throw "安装目录仍存在：$((Get-ChildItem -LiteralPath $InstallDir -Recurse | Select-Object -First 10 | ForEach-Object FullName) -join ', ')"
+  }
   $uk = Get-ChildItem 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall' | Where-Object { $_.GetValue('DisplayName') -eq '桌面工具箱' }
   Assert ($null -eq $uk) "卸载注册表项仍存在"
   Assert (-not (Test-Path 'HKLM:\SOFTWARE\DesktopToolbox')) "HKLM\SOFTWARE\DesktopToolbox 仍存在"
