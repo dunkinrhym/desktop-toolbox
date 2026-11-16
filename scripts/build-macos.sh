@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 桌面工具箱 macOS 构建脚本（在 macOS 上运行；GitHub Actions 的 macos-26 / macos-15-intel runner 使用它）
+# 桌面工具箱 macOS 构建脚本（在 macOS 上运行；GitHub Actions 的 macos-15-intel runner 使用它）
 #
 # 用法：bash scripts/build-macos.sh arm64|x64
 #

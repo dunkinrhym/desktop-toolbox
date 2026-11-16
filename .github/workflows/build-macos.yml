@@ -54,15 +54,17 @@ jobs:
   # ------------------------------------------------------------------ macOS（arm64 / x64 两个 DMG）
   macos:
     needs: check
-    # macos-14 已于 2026-11-02 退役；每个架构用原生运行器：arm64 → macos-26（= macos-latest，Apple 芯片），x64 → macos-15-intel
-    # （macos-15 arm64 池 2026-11 容量不足，任务排队 15 分钟后被取消，故 arm64 改用 macos-26）
+    # macos-14 已于 2026-11-02 退役。2026-11 GitHub 的 macOS arm64 托管运行器（macos-15 / macos-26）容量不足，
+    # 任务排队 15 分钟后被取消，因此两个架构都在 macos-15-intel 上构建：x64 原生构建并完整自检；
+    # arm64 交叉编译（Go/cgo -arch arm64、arm64 版 Python 轮子与 FFmpeg），Intel 机器无法运行 arm64 程序，故跳过运行时自检。
+    # arm64 运行器恢复后，可把 arm64 的 runner 改回 macos-26 以恢复原生自检。
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - arch: arm64
-            runner: macos-26
+            runner: macos-15-intel
           - arch: x64
             runner: macos-15-intel
     steps:
@@ -90,8 +92,9 @@ jobs:
           HOST_PY: python3
         run: bash scripts/build-macos.sh ${{ matrix.arch }}
       - name: 用打包进 .app 的 Python 运行转换测试
-        if: matrix.arch == 'arm64'
-        run: DT_TEST_PYTHON="$PWD/build/macos/out-arm64/桌面工具箱.app/Contents/Resources/python/bin/python3" go test -v -run TestConvert ./internal/converter
+        # 只在运行器架构与目标架构一致时运行（交叉编译出的 arm64 包在 Intel 机器上无法执行）
+        if: (matrix.arch == 'arm64' && runner.arch == 'ARM64') || (matrix.arch == 'x64' && runner.arch == 'X64')
+        run: DT_TEST_PYTHON="$PWD/build/macos/out-${{ matrix.arch }}/桌面工具箱.app/Contents/Resources/python/bin/python3" go test -v -run TestConvert ./internal/converter
       - uses: actions/upload-artifact@v4
         with:
           name: DesktopToolbox-macOS-${{ matrix.arch }}
