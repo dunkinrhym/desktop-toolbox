@@ -10,6 +10,9 @@ import (
 
 func conv(t *testing.T) *Converter {
 	py := "/workspace/tools/pyenv/bin/python"
+	if env := os.Getenv("DT_TEST_PYTHON"); env != "" { // CI：测试打包进 .app 的 Python
+		py = env
+	}
 	if _, err := os.Stat(py); err != nil {
 		t.Skip("python venv not available")
 	}

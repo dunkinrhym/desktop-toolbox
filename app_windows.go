@@ -4,8 +4,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -35,11 +33,6 @@ var hotkeys = []win.Hotkey{
 	{ID: hkShow, Mods: win.MOD_ALT, VK: win.VK_SPACE, Name: "Alt+Space"},
 	{ID: hkShot, Mods: win.MOD_CONTROL | win.MOD_ALT, VK: 'A', Name: "Ctrl+Alt+A"},
 	{ID: hkClip, Mods: win.MOD_CONTROL | win.MOD_SHIFT, VK: 'V', Name: "Ctrl+Shift+V"},
-}
-
-// Settings 持久化的用户设置。
-type Settings struct {
-	ClipEnabled bool `json:"clipEnabled"`
 }
 
 // App 绑定到前端的应用对象。
@@ -141,21 +134,6 @@ func (a *App) onSecondInstance(data options.SecondInstanceData) {
 	a.showMain("")
 }
 
-func (a *App) settingsPath() string { return filepath.Join(a.dataDir, "settings.json") }
-
-func (a *App) loadSettings() {
-	b, err := os.ReadFile(a.settingsPath())
-	if err != nil {
-		return
-	}
-	_ = json.Unmarshal(b, &a.settings)
-}
-
-func (a *App) saveSettings() {
-	b, _ := json.MarshalIndent(a.settings, "", "  ")
-	_ = os.WriteFile(a.settingsPath(), b, 0o644)
-}
-
 // ---------------------------------------------------------------- window control
 
 // showMain 显示主窗口；view 非空时切换到对应页面。
@@ -215,12 +193,6 @@ func (a *App) onHotkey(id int) {
 	}
 }
 
-func (a *App) isPopup() bool {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	return a.popup
-}
-
 func (a *App) onTray(cmd int) {
 	switch cmd {
 	case trayShow:
@@ -236,34 +208,7 @@ func (a *App) onTray(cmd int) {
 	}
 }
 
-// Quit 退出程序。
-func (a *App) Quit() {
-	runtime.Quit(a.ctx)
-}
-
 // ---------------------------------------------------------------- info / settings
-
-// HotkeyInfo 热键状态。
-type HotkeyInfo struct {
-	Name   string `json:"name"`
-	Keys   string `json:"keys"`
-	OK     bool   `json:"ok"`
-	Action string `json:"action"`
-}
-
-// AppInfo 应用信息。
-type AppInfo struct {
-	Name       string       `json:"name"`
-	Version    string       `json:"version"`
-	Hotkeys    []HotkeyInfo `json:"hotkeys"`
-	DataDir    string       `json:"dataDir"`
-	Desktop    string       `json:"desktop"`
-	Autostart  bool         `json:"autostart"`
-	HasPython  bool         `json:"hasPython"`
-	HasFFmpeg  bool         `json:"hasFfmpeg"`
-	ClipOn     bool         `json:"clipOn"`
-	InitErrors []string     `json:"initErrors"`
-}
 
 // GetInfo 返回应用状态信息。
 func (a *App) GetInfo() AppInfo {
@@ -284,7 +229,7 @@ func (a *App) GetInfo() AppInfo {
 	return AppInfo{
 		Name: AppName, Version: AppVersion, Hotkeys: hks, DataDir: a.dataDir, Desktop: win.DesktopDir(),
 		Autostart: win.GetAutostart("DesktopToolbox"), HasPython: perr == nil, HasFFmpeg: ferr == nil,
-		ClipOn: clipOn && a.clips != nil, InitErrors: a.initErrs,
+		ClipOn: clipOn && a.clips != nil, InitErrors: a.initErrs, Platform: "windows", ScreenOK: true,
 	}
 }
 
@@ -305,15 +250,4 @@ func (a *App) CopyText(text string) error { return win.SetClipboardText(text) }
 // OpenDataDir 打开数据目录。
 func (a *App) OpenDataDir() error {
 	return win.OpenFile(a.dataDir)
-}
-
-func errString(err error) string {
-	if err == nil {
-		return ""
-	}
-	return err.Error()
-}
-
-func timestampName(prefix, ext string) string {
-	return fmt.Sprintf("%s_%s%s", prefix, time.Now().Format("20060102_150405"), ext)
 }

@@ -22,26 +22,6 @@ type recordState struct {
 	restore  bool
 }
 
-// RecordRequest 录屏请求。
-type RecordRequest struct {
-	Mode       string `json:"mode"` // full | region | preset
-	Width      int    `json:"width"`
-	Height     int    `json:"height"`
-	Microphone string `json:"microphone"`
-	Cursor     bool   `json:"cursor"`
-	FPS        int    `json:"fps"`
-}
-
-// RecordEvent 录屏状态事件。
-type RecordEvent struct {
-	Recording bool   `json:"recording"`
-	Started   int64  `json:"started"`
-	Output    string `json:"output"`
-	Error     string `json:"error"`
-	Width     int    `json:"width"`
-	Height    int    `json:"height"`
-}
-
 // ListMicrophones 列出麦克风。
 func (a *App) ListMicrophones() ([]string, error) {
 	devs, err := recorder.ListMicrophones(a.ffmpeg)

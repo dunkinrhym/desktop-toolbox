@@ -51,7 +51,7 @@
       </div>
       <div class="opts">
         <div class="seg" id="scope">
-          <button class="seg-btn active" data-scope="all">所有磁盘</button>
+          <button class="seg-btn active" data-scope="all" data-mac="整台电脑">所有磁盘</button>
           <button class="seg-btn" data-scope="folder">指定文件夹</button>
         </div>
         <span class="folder-path hidden" id="folder-path" title="点击更换文件夹"></span>
@@ -71,7 +71,7 @@
             <div class="empty" id="res-empty">
               <div class="empty-icon">🔍</div>
               <div>输入关键词后按回车开始搜索</div>
-              <div class="muted">双击结果打开文件，右键可打开所在文件夹</div>
+              <div class="muted" data-mac="双击结果打开文件，右键可在访达中显示">双击结果打开文件，右键可打开所在文件夹</div>
             </div>
           </div>
         </div>
@@ -86,7 +86,7 @@
           </div>
           <div class="pv-tools hidden" id="pv-tools">
             <button class="btn small" id="pv-open">打开文件</button>
-            <button class="btn small" id="pv-folder">打开所在文件夹</button>
+            <button class="btn small" id="pv-folder" data-mac="在访达中显示">打开所在文件夹</button>
           </div>
           <div class="pv-body" id="pv-body"><div class="empty"><div class="muted">选择一个结果，在这里预览文字内容并以黄色标出关键词（不会修改原文件）</div></div></div>
         </div>
@@ -102,11 +102,11 @@
       <div class="hero card">
         <div class="hero-icon">✂️</div>
         <button class="btn primary big" id="btn-shot">开始截图</button>
-        <div class="kbd-line">随时按 <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>A</kbd> 截图</div>
+        <div class="kbd-line" data-mac-html="随时按 &lt;kbd&gt;⌃ Control&lt;/kbd&gt; + &lt;kbd&gt;⌥ Option&lt;/kbd&gt; + &lt;kbd&gt;A&lt;/kbd&gt; 截图">随时按 <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>A</kbd> 截图</div>
       </div>
       <div class="tips card">
         <h3>使用方法</h3>
-        <ul>
+        <ul data-mac-html="&lt;li&gt;按住鼠标拖动选择区域；按 &lt;kbd&gt;空格&lt;/kbd&gt; 切换为“窗口截图”，单击要截的窗口&lt;/li&gt;&lt;li&gt;截好后图片自动进入剪贴板，在 Word、微信、邮件中按 &lt;kbd&gt;⌘V&lt;/kbd&gt; 直接粘贴，同时记入剪贴板历史&lt;/li&gt;&lt;li&gt;需要保存为文件时，点下方结果中的&lt;b&gt;另存为…&lt;/b&gt;（PNG，默认位置为桌面）&lt;/li&gt;&lt;li&gt;&lt;kbd&gt;Esc&lt;/kbd&gt; 取消。首次使用需要在“系统设置 → 隐私与安全性 → 屏幕录制”中允许“桌面工具箱”&lt;/li&gt;">
           <li>按住鼠标左键拖动选择区域，拖动选区可移动位置；单击则选中整个屏幕</li>
           <li><b>复制</b>（或双击选区 / 回车 / Ctrl+C）：图片进入剪贴板，在 Word、微信、邮件中直接粘贴，Word 会自动缩放到页面宽度</li>
           <li><b>保存</b>（或 Ctrl+S）：保存为 PNG，默认位置为桌面</li>
@@ -203,7 +203,7 @@
             <button class="btn danger" id="rec-stop">停止录制</button>
           </div>
         </div>
-        <div class="muted">录制时屏幕顶部会出现悬浮计时条，点击“停止”即可结束；视频保存为 桌面\录屏_日期_时间.mp4</div>
+        <div class="muted" data-mac="录制时屏幕顶部会出现悬浮计时条（菜单栏图标旁也会显示计时），点击“停止录制”即可结束；视频保存为 桌面/录屏_日期_时间.mp4。首次使用需允许“屏幕录制”（录声音还需“麦克风”）权限。">录制时屏幕顶部会出现悬浮计时条，点击“停止”即可结束；视频保存为 桌面\录屏_日期_时间.mp4</div>
       </div>
       <div class="card result-card hidden" id="rec-result"></div>
     </section>
@@ -212,7 +212,7 @@
     <section class="view" id="view-settings">
       <header class="view-head">
         <h1>设置与快捷键</h1>
-        <p>关闭窗口后程序会在系统托盘继续运行，快捷键随时可用</p>
+        <p data-mac="关闭窗口后程序会在菜单栏继续运行，快捷键随时可用">关闭窗口后程序会在系统托盘继续运行，快捷键随时可用</p>
       </header>
       <div class="card">
         <h3>全局快捷键</h3>
@@ -220,9 +220,9 @@
       </div>
       <div class="card">
         <h3>常规</h3>
-        <div class="set-row"><span>开机自动启动（后台运行）</span><label class="switch"><input type="checkbox" id="set-autostart"><span class="slider"></span></label></div>
+        <div class="set-row"><span data-mac="登录时自动启动（后台运行）">开机自动启动（后台运行）</span><label class="switch"><input type="checkbox" id="set-autostart"><span class="slider"></span></label></div>
         <div class="set-row"><span>剪贴板历史与设置保存位置</span><button class="btn small" id="set-datadir">打开文件夹</button></div>
-        <div class="set-row"><span>退出程序（托盘图标右键也可退出）</span><button class="btn small danger" id="set-quit">退出</button></div>
+        <div class="set-row"><span data-mac="退出程序（菜单栏图标中也可退出）">退出程序（托盘图标右键也可退出）</span><button class="btn small danger" id="set-quit">退出</button></div>
       </div>
       <div class="card">
         <h3>组件状态</h3>
@@ -235,7 +235,7 @@
 
 <div class="ctx-menu hidden" id="ctx-menu">
   <a data-act="open">打开</a>
-  <a data-act="folder">打开所在文件夹</a>
+  <a data-act="folder" data-mac="在访达中显示">打开所在文件夹</a>
   <a data-act="copy">复制路径</a>
 </div>
 <div class="toast-wrap" id="toasts"></div>

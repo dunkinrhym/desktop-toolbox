@@ -1,4 +1,4 @@
-//go:build windows
+//go:build windows || darwin
 
 package main
 
@@ -15,7 +15,6 @@ import (
 
 	"desktoptoolbox/internal/extract"
 	"desktoptoolbox/internal/search"
-	"desktoptoolbox/internal/win"
 )
 
 type searchState struct {
@@ -47,7 +46,7 @@ type SearchDone struct {
 }
 
 // GetDrives 列出可搜索的磁盘。
-func (a *App) GetDrives() []string { return win.Drives() }
+func (a *App) GetDrives() []string { return searchRoots() }
 
 // PickFolder 选择文件夹。
 func (a *App) PickFolder() (string, error) {
@@ -68,7 +67,7 @@ func (a *App) StartSearch(req SearchRequest) (int, error) {
 		}
 		roots = []string{req.Folder}
 	} else {
-		roots = win.Drives()
+		roots = searchRoots()
 		if len(roots) == 0 {
 			return 0, errors.New("没有找到可搜索的磁盘")
 		}
@@ -115,13 +114,19 @@ func (a *App) StartSearch(req SearchRequest) (int, error) {
 				}
 			}
 		}()
-		stats = search.Run(ctx, search.Options{
-			Roots: roots, Keyword: kw, Content: req.Content, Exts: exts, MaxResults: 5000,
-		}, func(r search.Result) {
+		opts := search.Options{Roots: roots, Keyword: kw, Content: req.Content, Exts: exts, MaxResults: 5000}
+		collect := func(r search.Result) {
 			mu.Lock()
 			pending = append(pending, r)
 			mu.Unlock()
-		})
+		}
+		// 平台快速通道（macOS：全盘按文件名搜索时使用 Spotlight 索引）；不可用时回退到实时遍历
+		fast, ok := fastNameSearch(ctx, req.Folder == "", opts, collect)
+		if ok {
+			stats = fast
+		} else {
+			stats = search.Run(ctx, opts, collect)
+		}
 		close(stop)
 		<-flushDone
 		runtime.EventsEmit(a.ctx, "search:done", SearchDone{ID: id, Stats: stats, ElapsedMs: time.Since(start).Milliseconds()})

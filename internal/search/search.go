@@ -370,8 +370,11 @@ func scanDir(ctx context.Context, dir string, kws []string, exts map[string]bool
 			if SkipDir(name, info) {
 				continue
 			}
-			subs = append(subs, full)
-			if len(exts) == 0 && NameMatches(name, kws) {
+			pkg := isPackageDir(name) // macOS .app 等：可搜到名称，但不进入内部
+			if !pkg {
+				subs = append(subs, full)
+			}
+			if (len(exts) == 0 || (pkg && exts[strings.ToLower(filepath.Ext(name))])) && NameMatches(name, kws) {
 				if r, ok := makeResultFromEntry(full, e, "name"); ok {
 					send(r)
 				}

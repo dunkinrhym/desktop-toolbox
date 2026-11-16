@@ -1,4 +1,4 @@
-//go:build windows
+//go:build windows || darwin
 
 package main
 
@@ -8,7 +8,6 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"desktoptoolbox/internal/cliphist"
-	"desktoptoolbox/internal/win"
 )
 
 func (a *App) onClipText(text string) {
@@ -71,10 +70,10 @@ func (a *App) ClipCopy(id string) error {
 		return err
 	}
 	if it.Kind == "image" {
-		if err := win.SetClipboardImage(nil, png); err != nil {
+		if err := setClipboardPNG(png); err != nil {
 			return errors.New("复制图片失败：" + err.Error())
 		}
-	} else if err := win.SetClipboardText(it.Text); err != nil {
+	} else if err := setClipboardText(it.Text); err != nil {
 		return errors.New("复制失败：" + err.Error())
 	}
 	a.clips.Touch(id)
@@ -91,7 +90,7 @@ func (a *App) ClipCopyMany(ids []string) (int, error) {
 	if n == 0 {
 		return 0, errors.New("所选记录中没有文本（图片无法合并复制）")
 	}
-	if err := win.SetClipboardText(text); err != nil {
+	if err := setClipboardText(text); err != nil {
 		return 0, errors.New("复制失败：" + err.Error())
 	}
 	// 合并后的文本也记入历史，方便再次使用
@@ -129,5 +128,5 @@ func (a *App) ClipSetEnabled(on bool) error {
 	a.settings.ClipEnabled = on
 	a.saveSettings()
 	a.mu.Unlock()
-	return win.WatchClipboard(on)
+	return a.watchClipboard(on)
 }

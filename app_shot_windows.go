@@ -21,15 +21,6 @@ type shotState struct {
 	active bool
 }
 
-// ShotEvent 截图结果事件。
-type ShotEvent struct {
-	Action string `json:"action"`
-	Path   string `json:"path"`
-	Width  int    `json:"width"`
-	Height int    `json:"height"`
-	Error  string `json:"error"`
-}
-
 // StartScreenshot 由界面按钮触发：先隐藏主窗口再截图，完成后恢复主窗口。
 func (a *App) StartScreenshot() {
 	go a.takeScreenshot(true)

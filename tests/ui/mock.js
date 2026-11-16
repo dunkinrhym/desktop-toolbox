@@ -21,7 +21,11 @@
   ];
   const ok = v => Promise.resolve(v);
   window.__mockApi = {
-    GetInfo: () => ok({ name: '桌面工具箱', version: '0.1.0', hotkeys: [
+    GetInfo: () => ok(/[?&]mac=1/.test(location.search) ? { name: '桌面工具箱', version: '0.1.0', platform: 'darwin', screenOk: false, hotkeys: [
+      { name: '⌥ Option+Space', keys: '⌥ Option+Space', ok: true, action: '显示/隐藏主窗口' },
+      { name: '⌃ Control+⌥ Option+A', keys: '⌃ Control+⌥ Option+A', ok: true, action: '截图' },
+      { name: '⌘ Command+⇧ Shift+V', keys: '⌘ Command+⇧ Shift+V', ok: true, action: '剪贴板历史' }],
+      dataDir: '/Users/me/Library/Application Support/DesktopToolbox', autostart: false, hasPython: true, hasFfmpeg: true, clipOn: true, initErrors: [] } : { name: '桌面工具箱', version: '0.1.0', platform: 'windows', screenOk: true, hotkeys: [
       { name: 'Alt+Space', keys: 'Alt+Space', ok: true, action: '显示/隐藏主窗口' },
       { name: 'Ctrl+Alt+A', keys: 'Ctrl+Alt+A', ok: true, action: '截图' },
       { name: 'Ctrl+Shift+V', keys: 'Ctrl+Shift+V', ok: false, action: '剪贴板历史' }],

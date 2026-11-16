@@ -6,6 +6,21 @@ const $$ = (s, el = document) => Array.from(el.querySelectorAll(s));
 const API = () => (window.go && window.go.main && window.go.main.App) || window.__mockApi;
 const RT = () => window.runtime || window.__mockRuntime;
 const on = (ev, cb) => RT().EventsOn(ev, cb);
+/* 平台：macOS 版（WKWebView）与 Windows 版（WebView2）共用同一套前端，仅少量文字/按键不同 */
+const IS_MAC = /Mac/i.test(navigator.platform || '') || /Macintosh/.test(navigator.userAgent || '') || /[?&]mac=1/.test(location.search);
+const FOLDER_LABEL = IS_MAC ? '在访达中显示' : '打开所在文件夹';
+const PASTE_KEY = IS_MAC ? '⌘V' : 'Ctrl+V';
+if (IS_MAC) {
+  document.documentElement.classList.add('mac');
+  // data-mac：替换文字；data-mac-html：替换 HTML
+  document.querySelectorAll('[data-mac]').forEach(el => { el.textContent = el.dataset.mac; });
+  document.querySelectorAll('[data-mac-html]').forEach(el => { el.innerHTML = el.dataset.macHtml; });
+}
+/* WKWebView 中 window.confirm() 不可用：macOS 版改用原生对话框 */
+async function ask(msg) {
+  if (IS_MAC && API() && API().Confirm) { try { return await API().Confirm(msg); } catch { return false; } }
+  return confirm(msg);
+}
 
 function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -130,7 +145,7 @@ async function startSearch() {
   } catch { return; }
   S.t0 = Date.now();
   setSearching(true);
-  $('#search-status').textContent = (S.scope === 'folder' ? '正在搜索 ' + S.folder : '正在搜索所有磁盘') + (content ? '（含文件内容，可能较慢）' : '') + '…';
+  $('#search-status').textContent = (S.scope === 'folder' ? '正在搜索 ' + S.folder : (IS_MAC ? '正在搜索整台电脑' : '正在搜索所有磁盘')) + (content ? '（含文件内容，可能较慢）' : '') + '…';
 }
 
 function highlightName(name) {
@@ -329,15 +344,27 @@ on('shot:done', ev => {
   if (ev.error) { toast(ev.error, true); return; }
   box.classList.remove('hidden');
   if (ev.action === 'copy') {
-    box.innerHTML = `<span class="ok">✔</span><span class="grow">已复制 ${ev.width}×${ev.height} 截图到剪贴板，可直接在 Word 中粘贴（Ctrl+V）</span>`;
+    box.innerHTML = `<span class="ok">✔</span><span class="grow">已复制 ${ev.width}×${ev.height} 截图到剪贴板，可直接在 Word 中粘贴（${PASTE_KEY}）</span>` +
+      (ev.canSave ? '<button class="btn small" id="shot-saveas">另存为…</button>' : '');
     toast('截图已复制到剪贴板');
   } else if (ev.action === 'save') {
     box.innerHTML = `<span class="ok">✔</span><span class="grow" title="${esc(ev.path)}">已保存：${esc(ev.path)}</span>
-      <button class="btn small" data-open="${esc(ev.path)}">打开</button><button class="btn small" data-folder="${esc(ev.path)}">打开所在文件夹</button>`;
+      <button class="btn small" data-open="${esc(ev.path)}">打开</button><button class="btn small" data-folder="${esc(ev.path)}">${FOLDER_LABEL}</button>`;
     toast('截图已保存');
   }
 });
-document.addEventListener('click', e => {
+document.addEventListener('click', async e => {
+  if (e.target.id === 'shot-saveas') {
+    try {
+      const p = await API().SaveLastShot();
+      if (p) {
+        $('#shot-result').innerHTML = `<span class="ok">✔</span><span class="grow" title="${esc(p)}">已保存：${esc(p)}</span>
+          <button class="btn small" data-open="${esc(p)}">打开</button><button class="btn small" data-folder="${esc(p)}">${FOLDER_LABEL}</button>`;
+        toast('截图已保存');
+      }
+    } catch (err) { toast(errMsg(err), true); }
+    return;
+  }
   const o = e.target.closest('[data-open]'), f = e.target.closest('[data-folder]');
   if (o) call('OpenPath', o.dataset.open).catch(() => {});
   if (f) call('ShowInFolder', f.dataset.folder).catch(() => {});
@@ -409,7 +436,7 @@ $('#clip-list').addEventListener('click', async e => {
     loadClips();
     return;
   }
-  if (selectMode || e.ctrlKey) {
+  if (selectMode || e.ctrlKey || e.metaKey) {
     if (!selectMode) { selectMode = true; }
     togglePick(c);
     return;
@@ -427,7 +454,7 @@ $('#clip-copy-sel').addEventListener('click', async () => {
   } catch (e) { toast(errMsg(e), true); }
 });
 $('#clip-clear').addEventListener('click', async () => {
-  if (!confirm('确定清空剪贴板历史吗？（置顶的记录会保留）')) return;
+  if (!(await ask('确定清空剪贴板历史吗？（置顶的记录会保留）'))) return;
   await API().ClipClear(true);
   loadClips();
 });
@@ -554,7 +581,7 @@ on('convert:done', () => {
 
 /* ------------------------------------------------------------ 录屏 */
 const R = { mode: 'full', w: 0, h: 0, started: 0, timer: null, micLoaded: false };
-const modeNotes = { full: '录制鼠标所在的整个显示器', region: '开始后拖动鼠标选择要录制的区域', preset: '开始后移动鼠标放置固定大小的录制框，单击确定' };
+const modeNotes = { full: '录制鼠标所在的整个显示器', region: IS_MAC ? '开始后在鼠标所在的显示器上拖动选择区域（单击 = 整个屏幕）' : '开始后拖动鼠标选择要录制的区域', preset: '开始后移动鼠标放置固定大小的录制框，单击确定' };
 $$('#rec-mode .seg-btn').forEach(b => b.addEventListener('click', () => {
   R.mode = b.dataset.mode; R.w = +(b.dataset.w || 0); R.h = +(b.dataset.h || 0);
   $$('#rec-mode .seg-btn').forEach(x => x.classList.toggle('active', x === b));
@@ -607,7 +634,7 @@ on('rec:saved', ev => {
     return;
   }
   box.innerHTML = `<span class="ok">✔</span><span class="grow" title="${esc(ev.output)}">已保存：${esc(ev.output)}</span>
-    <button class="btn small primary" data-open="${esc(ev.output)}">播放</button><button class="btn small" data-folder="${esc(ev.output)}">打开所在文件夹</button>`;
+    <button class="btn small primary" data-open="${esc(ev.output)}">播放</button><button class="btn small" data-folder="${esc(ev.output)}">${FOLDER_LABEL}</button>`;
   toast('录屏已保存到桌面');
 });
 
@@ -624,14 +651,17 @@ async function loadInfo() {
   $('#comp-list').innerHTML =
     `<div class="comp-row"><span>格式转换组件（内置 Python + pdf2docx）</span>${info.hasPython ? '<span class="ok">正常</span>' : '<span class="err">缺失，请重新安装</span>'}</div>` +
     `<div class="comp-row"><span>转换组件自检（首次约需数秒）</span><button class="btn small" id="comp-test">检测</button></div>` +
-    `<div class="comp-row"><span>录屏组件（内置 FFmpeg）</span>${info.hasFfmpeg ? '<span class="ok">正常</span>' : '<span class="err">缺失，请重新安装</span>'}</div>`;
+    `<div class="comp-row"><span>录屏组件（内置 FFmpeg）</span>${info.hasFfmpeg ? '<span class="ok">正常</span>' : '<span class="err">缺失，请重新安装</span>'}</div>` +
+    (info.platform === 'darwin' ?
+      `<div class="comp-row"><span>“屏幕录制”权限（截图、录屏需要）</span><span>${info.screenOk ? '<span class="ok">已允许</span>' : '<span class="err">未允许</span>'}&nbsp;&nbsp;<button class="btn small" data-privacy="screen">打开系统设置</button></span></div>` +
+      `<div class="comp-row"><span>“麦克风”权限（录屏时录制声音需要）</span><button class="btn small" data-privacy="microphone">打开系统设置</button></div>` : '');
   $('#init-errors').innerHTML = (info.initErrors || []).map(e => `<div class="pv-warn">${esc(e)}</div>`).join('');
   if ((info.initErrors || []).length && !loadInfo.warned) { loadInfo.warned = true; toast(info.initErrors.join('\n'), true); }
   const failed = info.hotkeys.filter(h => !h.ok);
   if (failed.length && !loadInfo.hkWarned) { loadInfo.hkWarned = true; toast('以下快捷键被其他程序占用：' + failed.map(h => h.keys).join('、'), true); }
 }
 $('#set-autostart').addEventListener('change', async e => {
-  try { await API().SetAutostart(e.target.checked); toast(e.target.checked ? '已设置开机自启' : '已取消开机自启'); }
+  try { await API().SetAutostart(e.target.checked); toast(e.target.checked ? (IS_MAC ? '已设置登录时自动启动' : '已设置开机自启') : (IS_MAC ? '已取消自动启动' : '已取消开机自启')); }
   catch (err) { toast(errMsg(err), true); e.target.checked = !e.target.checked; }
 });
 document.addEventListener('click', async e => {
@@ -640,8 +670,12 @@ document.addEventListener('click', async e => {
   try { await API().TestConverter(); toast('转换组件工作正常'); } catch (err) { toast(errMsg(err), true); }
   e.target.disabled = false; e.target.textContent = '检测';
 });
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-privacy]');
+  if (b) call('OpenPrivacySettings', b.dataset.privacy).catch(() => {});
+});
 $('#set-datadir').addEventListener('click', () => call('OpenDataDir').catch(() => {}));
-$('#set-quit').addEventListener('click', () => { if (confirm('退出后快捷键和剪贴板记录将停止，确定退出吗？')) API().Quit(); });
+$('#set-quit').addEventListener('click', async () => { if (await ask('退出后快捷键和剪贴板记录将停止，确定退出吗？')) API().Quit(); });
 
 /* ------------------------------------------------------------ init */
 document.addEventListener('contextmenu', e => { if (!e.target.closest('input, textarea, pre')) e.preventDefault(); });
