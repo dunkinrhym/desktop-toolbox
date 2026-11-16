@@ -1,0 +1,20 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "DesktopToolbox",
+  "outputfilename": "DesktopToolbox",
+  "frontend:install": "",
+  "frontend:build": "",
+  "frontend:dir": "frontend",
+  "assetdir": "frontend/dist",
+  "author": {
+    "name": "DesktopToolbox",
+    "email": ""
+  },
+  "info": {
+    "companyName": "DesktopToolbox",
+    "productName": "桌面工具箱",
+    "productVersion": "0.1.0",
+    "copyright": "Copyright © 2026",
+    "comments": "桌面工具箱：文件搜索、截图、超级复制、格式转换、录屏"
+  }
+}

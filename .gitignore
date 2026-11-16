@@ -1,0 +1,24 @@
+# 构建产物
+build/bin/
+build/stage/
+build/portable/
+build/macos/
+build/windows/installer/tmp/
+build/windows/installer/wails_tools.nsh
+/dist/
+*.dmg
+*.exe
+*.zip
+
+# 下载的第三方组件（内置 Python / FFmpeg / 轮子），由构建脚本或 CI 下载
+third_party/
+
+# Wails 生成的绑定
+frontend/wailsjs/
+
+# 杂项
+__pycache__/
+*.pyc
+.DS_Store
+.idea/
+.vscode/

@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>桌面工具箱</title>
+<link rel="stylesheet" href="../../frontend/dist/style.css">
+</head>
+<body>
+<div id="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <img src="../../frontend/dist/logo.png" alt="" class="brand-logo">
+      <div>
+        <div class="brand-name">桌面工具箱</div>
+        <div class="brand-sub" id="ver">v0.1.0</div>
+      </div>
+    </div>
+    <nav>
+      <a class="nav-item active" data-view="search">
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>文件搜索</a>
+      <a class="nav-item" data-view="shot">
+        <svg viewBox="0 0 24 24"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><circle cx="12" cy="12" r="3"/></svg>截图</a>
+      <a class="nav-item" data-view="clipboard">
+        <svg viewBox="0 0 24 24"><rect x="6" y="4" width="12" height="17" rx="2"/><path d="M9 4h6v3H9zM9 12h6M9 16h4"/></svg>超级复制</a>
+      <a class="nav-item" data-view="convert">
+        <svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 14h6M12 11l3 3-3 3"/></svg>格式转换</a>
+      <a class="nav-item" data-view="record">
+        <svg viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10l5-3v10l-5-3z"/></svg>录屏</a>
+    </nav>
+    <div class="sidebar-foot">
+      <a class="nav-item small" data-view="settings">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>设置与快捷键</a>
+    </div>
+  </aside>
+
+  <main>
+    <!-- 文件搜索 -->
+    <section class="view active" id="view-search">
+      <header class="view-head">
+        <h1>文件搜索</h1>
+        <p>按文件名查找，也可以在文档内容中查找关键词</p>
+      </header>
+      <div class="card toolbar">
+        <div class="search-box">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+          <input id="kw" type="text" placeholder="输入关键词，多个词用空格分隔" autocomplete="off" spellcheck="false">
+        </div>
+        <button class="btn primary" id="btn-search">搜索</button>
+        <button class="btn danger hidden" id="btn-stop">停止</button>
+      </div>
+      <div class="opts">
+        <div class="seg" id="scope">
+          <button class="seg-btn active" data-scope="all">所有磁盘</button>
+          <button class="seg-btn" data-scope="folder">指定文件夹</button>
+        </div>
+        <span class="folder-path hidden" id="folder-path" title="点击更换文件夹"></span>
+        <label class="check"><input type="checkbox" id="opt-content"><span>搜索文件内容</span></label>
+        <input class="input small" id="opt-exts" placeholder="类型筛选，如 docx,pdf（可选）">
+      </div>
+      <div class="status" id="search-status">支持内容搜索的格式：txt、md、csv、代码、日志、json、xml、html、docx、xlsx、pptx、pdf</div>
+      <div class="split">
+        <div class="card results">
+          <div class="res-head">
+            <span class="c-name sortable" data-sort="name">名称</span>
+            <span class="c-dir">位置</span>
+            <span class="c-size sortable" data-sort="size">大小</span>
+            <span class="c-time sortable" data-sort="time">修改时间</span>
+          </div>
+          <div class="res-body" id="res-body">
+            <div class="empty" id="res-empty">
+              <div class="empty-icon">🔍</div>
+              <div>输入关键词后按回车开始搜索</div>
+              <div class="muted">双击结果打开文件，右键可打开所在文件夹</div>
+            </div>
+          </div>
+        </div>
+        <div class="card preview" id="preview">
+          <div class="pv-head">
+            <div class="pv-title" id="pv-title">预览</div>
+            <div class="pv-actions">
+              <span class="pv-count" id="pv-count"></span>
+              <button class="icon-btn" id="pv-prev" title="上一处 (Shift+F3)">▲</button>
+              <button class="icon-btn" id="pv-next" title="下一处 (F3)">▼</button>
+            </div>
+          </div>
+          <div class="pv-tools hidden" id="pv-tools">
+            <button class="btn small" id="pv-open">打开文件</button>
+            <button class="btn small" id="pv-folder">打开所在文件夹</button>
+          </div>
+          <div class="pv-body" id="pv-body"><div class="empty"><div class="muted">选择一个结果，在这里预览文字内容并以黄色标出关键词（不会修改原文件）</div></div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 截图 -->
+    <section class="view" id="view-shot">
+      <header class="view-head">
+        <h1>截图</h1>
+        <p>框选屏幕任意区域，一键复制到剪贴板粘贴进 Word，或保存为图片</p>
+      </header>
+      <div class="hero card">
+        <div class="hero-icon">✂️</div>
+        <button class="btn primary big" id="btn-shot">开始截图</button>
+        <div class="kbd-line">随时按 <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>A</kbd> 截图</div>
+      </div>
+      <div class="tips card">
+        <h3>使用方法</h3>
+        <ul>
+          <li>按住鼠标左键拖动选择区域，拖动选区可移动位置；单击则选中整个屏幕</li>
+          <li><b>复制</b>（或双击选区 / 回车 / Ctrl+C）：图片进入剪贴板，在 Word、微信、邮件中直接粘贴，Word 会自动缩放到页面宽度</li>
+          <li><b>保存</b>（或 Ctrl+S）：保存为 PNG，默认位置为桌面</li>
+          <li>右键重新选择，<kbd>Esc</kbd> 取消</li>
+        </ul>
+      </div>
+      <div class="card result-card hidden" id="shot-result"></div>
+    </section>
+
+    <!-- 超级复制 -->
+    <section class="view" id="view-clipboard">
+      <header class="view-head" id="clip-head">
+        <h1>超级复制</h1>
+        <p>自动记录最近 100 条复制的文字和图片，点击即可再次复制</p>
+      </header>
+      <div class="popup-head">
+        <div class="popup-title">剪贴板历史</div>
+        <div class="muted">↑↓ 选择 · Enter 复制 · 空格 多选 · Esc 关闭</div>
+      </div>
+      <div class="card toolbar">
+        <div class="search-box">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+          <input id="clip-q" type="text" placeholder="搜索历史记录" autocomplete="off" spellcheck="false">
+        </div>
+        <button class="btn primary hidden" id="clip-copy-sel">复制所选</button>
+        <button class="btn" id="clip-select-mode">多选</button>
+        <label class="switch" title="开启/暂停记录"><input type="checkbox" id="clip-enabled" checked><span class="slider"></span><span class="switch-label">记录中</span></label>
+        <button class="btn" id="clip-clear">清空</button>
+      </div>
+      <div class="clip-list" id="clip-list"></div>
+    </section>
+
+    <!-- 格式转换 -->
+    <section class="view" id="view-convert">
+      <header class="view-head">
+        <h1>格式转换</h1>
+        <p>PDF 转 Word、Markdown 转 Word，支持批量，完全离线</p>
+      </header>
+      <div class="drop card" id="drop">
+        <div class="drop-icon">📄</div>
+        <div><b>拖拽 PDF / Markdown 文件到这里</b></div>
+        <div class="muted">或 <a id="pick-files">点击选择文件</a></div>
+      </div>
+      <div class="opts">
+        <div class="seg" id="out-mode">
+          <button class="seg-btn active" data-out="same">保存到原文件旁边</button>
+          <button class="seg-btn" data-out="dir">保存到指定文件夹</button>
+        </div>
+        <span class="folder-path hidden" id="out-path" title="点击更换文件夹"></span>
+        <div class="spacer"></div>
+        <button class="btn" id="conv-clear">清空列表</button>
+        <button class="btn danger hidden" id="conv-cancel">取消</button>
+        <button class="btn primary" id="conv-start">开始转换</button>
+      </div>
+      <div class="card conv-list" id="conv-list">
+        <div class="empty" id="conv-empty"><div class="muted">还没有添加文件</div></div>
+      </div>
+      <div class="note">提示：扫描件/图片型 PDF 没有可提取的文字，需要 OCR 识别，本工具不包含 OCR，转换时会给出提示。</div>
+    </section>
+
+    <!-- 录屏 -->
+    <section class="view" id="view-record">
+      <header class="view-head">
+        <h1>录屏</h1>
+        <p>录制全屏或指定区域，保存为 MP4 到桌面</p>
+      </header>
+      <div class="card rec-card">
+        <div class="field">
+          <div class="label">录制范围</div>
+          <div class="seg" id="rec-mode">
+            <button class="seg-btn active" data-mode="full">全屏</button>
+            <button class="seg-btn" data-mode="region">选择区域</button>
+            <button class="seg-btn" data-mode="preset" data-w="1920" data-h="1080">1920×1080</button>
+            <button class="seg-btn" data-mode="preset" data-w="1280" data-h="720">1280×720</button>
+          </div>
+          <div class="muted small-note" id="rec-mode-note">录制鼠标所在的整个显示器</div>
+        </div>
+        <div class="field">
+          <div class="label">麦克风</div>
+          <div class="row">
+            <select class="input" id="rec-mic"><option value="">不录制声音</option></select>
+            <button class="btn small" id="rec-mic-refresh">刷新设备</button>
+          </div>
+        </div>
+        <div class="field row">
+          <label class="check"><input type="checkbox" id="rec-cursor" checked><span>录制鼠标指针</span></label>
+          <span class="muted">帧率</span>
+          <select class="input tiny" id="rec-fps"><option>30</option><option>60</option><option>15</option></select>
+        </div>
+        <div class="rec-action">
+          <button class="btn rec big" id="rec-start"><span class="dot"></span>开始录制</button>
+          <div class="rec-live hidden" id="rec-live">
+            <span class="dot blink"></span><span id="rec-timer">00:00:00</span>
+            <button class="btn danger" id="rec-stop">停止录制</button>
+          </div>
+        </div>
+        <div class="muted">录制时屏幕顶部会出现悬浮计时条，点击“停止”即可结束；视频保存为 桌面\录屏_日期_时间.mp4</div>
+      </div>
+      <div class="card result-card hidden" id="rec-result"></div>
+    </section>
+
+    <!-- 设置 -->
+    <section class="view" id="view-settings">
+      <header class="view-head">
+        <h1>设置与快捷键</h1>
+        <p>关闭窗口后程序会在系统托盘继续运行，快捷键随时可用</p>
+      </header>
+      <div class="card">
+        <h3>全局快捷键</h3>
+        <div id="hk-list"></div>
+      </div>
+      <div class="card">
+        <h3>常规</h3>
+        <div class="set-row"><span>开机自动启动（后台运行）</span><label class="switch"><input type="checkbox" id="set-autostart"><span class="slider"></span></label></div>
+        <div class="set-row"><span>剪贴板历史与设置保存位置</span><button class="btn small" id="set-datadir">打开文件夹</button></div>
+        <div class="set-row"><span>退出程序（托盘图标右键也可退出）</span><button class="btn small danger" id="set-quit">退出</button></div>
+      </div>
+      <div class="card">
+        <h3>组件状态</h3>
+        <div id="comp-list"></div>
+        <div id="init-errors"></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="ctx-menu hidden" id="ctx-menu">
+  <a data-act="open">打开</a>
+  <a data-act="folder">打开所在文件夹</a>
+  <a data-act="copy">复制路径</a>
+</div>
+<div class="toast-wrap" id="toasts"></div>
+<script src="mock.js"></script><script src="../../frontend/dist/app.js"></script>
+<script>
+const q=new URLSearchParams(location.search);
+window.addEventListener('load',()=>setTimeout(()=>{
+ const v=q.get('view')||'search';
+ if(v==='search'){document.querySelector('#kw').value='报告';document.querySelector('#opt-content').checked=true;document.querySelector('#btn-search').click();setTimeout(()=>document.querySelector('.res-row[data-i="1"]').click(),200);}
+ else if(v==='popup'){window.__mockRuntime.emit('ui:mode',{popup:true});}
+ else if(v==='convert'){showView('convert');addConvFiles(['D:\\文档\\合同.pdf','D:\\文档\\说明.md','D:\\扫描件.pdf']);C.files[0].status='done';C.files[0].output='D:\\文档\\合同.docx';C.files[1].status='running';C.files[1].pct=45;C.files[1].msg='第 3/7 页';C.files[2].status='error';C.files[2].error='⚠ 该 PDF 是扫描件/图片型 PDF（几乎没有可提取的文字），需要 OCR 识别，本工具不包含 OCR 功能。';renderConv();}
+ else showView(v);
+},100));
+</script>
+</body>
+</html>
