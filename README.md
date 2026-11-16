@@ -86,7 +86,7 @@ macOS 程序需要 cgo + macOS SDK，只能在 Mac 上编译。仓库自带工�
 
 - **触发**：推送 `v*` 标签，或在 Actions 页面手动运行（可勾选“创建 Release”“同时构建 Windows”）。
 - **check**（ubuntu）：gofmt、`go vet`（linux / windows / darwin 无 cgo）、单元测试。
-- **macos**（矩阵：arm64 用 `macos-15`，x64 用 `macos-15-intel`，均为原生运行器）：执行 `bash scripts/build-macos.sh <arch>`：
+- **macos**（矩阵：arm64 用 `macos-26`，x64 用 `macos-15-intel`，均为原生运行器）：执行 `bash scripts/build-macos.sh <arch>`：
   1. 下载 python-build-standalone `cpython-3.12.16+20261110-<aarch64|x86_64>-apple-darwin-install_only`，精简；
   2. `pip install --target … --platform macosx_12_0_<arch> --only-binary=:all:` 安装 pdf2docx、PyMuPDF 1.26.x 等轮子，预编译 .pyc；
   3. 下载 ffmpeg.martin-riedl.de 的静态 FFmpeg（arm64 / amd64）；
