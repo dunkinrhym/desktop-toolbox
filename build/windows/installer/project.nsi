@@ -94,6 +94,7 @@ Section
     File /r "..\..\stage\resources\*.*"
     SetOutPath $INSTDIR
 
+    SetRegView 64
     WriteRegStr HKLM "Software\DesktopToolbox" "InstallDir" "$INSTDIR"
 
     CreateShortcut "$SMPROGRAMS\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
@@ -111,7 +112,11 @@ Section "uninstall"
 
     Delete "$SMPROGRAMS\${INFO_PRODUCTNAME}.lnk"
     Delete "$DESKTOP\${INFO_PRODUCTNAME}.lnk"
+    SetRegView 64
     DeleteRegKey HKLM "Software\DesktopToolbox"
+    SetRegView 32
+    DeleteRegKey HKLM "Software\DesktopToolbox"
+    SetRegView 64
 
     ; 当前用户的数据
     SetShellVarContext current

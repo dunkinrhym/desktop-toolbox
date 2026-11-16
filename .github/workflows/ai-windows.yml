@@ -78,6 +78,8 @@ jobs:
         shell: pwsh
     env:
       LLM: ${{ inputs.llm || 'llm-0.6b' }}
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5

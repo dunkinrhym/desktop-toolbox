@@ -169,6 +169,7 @@ func (a *App) showMain(view string) {
 	a.mu.Unlock()
 	if wasPopup {
 		runtime.WindowSetAlwaysOnTop(a.ctx, false)
+		runtime.WindowSetMinSize(a.ctx, 860, 560)
 		runtime.WindowSetSize(a.ctx, 1120, 740)
 		runtime.WindowCenter(a.ctx)
 	}
@@ -185,6 +186,8 @@ func (a *App) showClipPopup() {
 	a.popup = true
 	a.mu.Unlock()
 	runtime.EventsEmit(a.ctx, "ui:mode", map[string]any{"popup": true, "view": "clipboard"})
+	// 主窗口最小宽度 860，小窗口模式需先放宽限制，否则尺寸会被夹到 860
+	runtime.WindowSetMinSize(a.ctx, 360, 400)
 	runtime.WindowSetSize(a.ctx, 440, 640)
 	runtime.WindowCenter(a.ctx)
 	runtime.WindowSetAlwaysOnTop(a.ctx, true)
