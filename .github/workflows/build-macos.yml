@@ -54,11 +54,16 @@ jobs:
   # ------------------------------------------------------------------ macOS（arm64 / x64 两个 DMG）
   macos:
     needs: check
-    runs-on: macos-14
+    # macos-14 已于 2026-11-02 退役；每个架构用原生运行器：arm64 → macos-15（Apple 芯片），x64 → macos-15-intel
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
-        arch: [arm64, x64]
+        include:
+          - arch: arm64
+            runner: macos-15
+          - arch: x64
+            runner: macos-15-intel
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
