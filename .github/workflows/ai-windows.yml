@@ -1,0 +1,150 @@
+name: AI 功能冒烟测试（Windows x64）
+
+# 在 ubuntu 上用 scripts/build.sh 交叉编译 Windows 安装包与便携版，然后在 windows-latest 上：
+#   1. 用 dtai 工具按 internal/aiengine/manifest.json 真实下载 AI 组件（断点续传 + SHA256 校验）；
+#   2. 用便携版内置的嵌入式 Python 启动 AI 引擎，经由与主程序相同的 stdin/stdout 通道逐项运行：
+#      截图识字、图片转 Word / Excel、扫描 PDF 转 Word、去水印、会议转写（说话人分离）、翻译、改写、会议纪要；
+# 测试用大模型默认是 Qwen3-0.6B（只验证流程，质量以 4B/8B 为准）。
+on:
+  workflow_dispatch:
+    inputs:
+      llm:
+        description: "测试用大模型组件（llm-0.6b / llm-1.7b / llm-4b）"
+        default: "llm-0.6b"
+  push:
+    branches: [feature/ai-offline]
+    paths:
+      - "ai-engine/**"
+      - "internal/aiengine/**"
+      - ".github/workflows/ai-windows.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ai-windows-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GO_VERSION: "1.27.x"
+  WAILS_VERSION: "v2.17.1"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 安装 NSIS / Wails / 测试用 Python 依赖
+        run: |
+          sudo apt-get update -q && sudo apt-get install -y -q nsis zip unzip
+          go install github.com/wailsapp/wails/v2/cmd/wails@${{ env.WAILS_VERSION }}
+          python3 -m venv "$RUNNER_TEMP/pyenv"
+          "$RUNNER_TEMP/pyenv/bin/pip" install -q pdf2docx==0.5.13 python-docx markdown "PyMuPDF<1.27" "opencv-python-headless<4.13" "numpy<2.4"
+      - name: AI 组件单元测试（下载器：镜像切换 / 断点续传 / 校验）
+        run: go test -count=1 ./internal/aiengine/...
+      - name: 构建 Windows 安装包与便携版（scripts/build.sh）
+        env:
+          DT_TEST_PYTHON: ${{ runner.temp }}/pyenv/bin/python
+          TOOLS: ${{ runner.temp }}/tools
+        run: |
+          bash scripts/build.sh
+          VERSION="$(sed -n 's/.*"productVersion": *"\([^"]*\)".*/\1/p' wails.json | head -1)"
+          mkdir -p out
+          cp "dist/桌面工具箱-Setup-x64.exe" "out/DesktopToolbox-$VERSION-Windows-Setup-x64.exe"
+          cp "dist/桌面工具箱-便携版-x64.zip" "out/DesktopToolbox-$VERSION-Windows-Portable-x64.zip"
+          echo "${GITHUB_SHA}" > out/COMMIT.txt
+          (cd out && sha256sum * | tee SHA256SUMS.txt)
+          ls -la out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ai-windows-build
+          path: out/*
+          compression-level: 0
+          retention-days: 14
+          if-no-files-found: error
+
+  smoke:
+    needs: build
+    runs-on: windows-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      LLM: ${{ inputs.llm || 'llm-0.6b' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: ai-windows-build
+          path: ${{ runner.temp }}/build
+      - name: 解压便携版
+        run: |
+          $zip = Get-ChildItem "$env:RUNNER_TEMP\build" -Filter *Portable*.zip | Select-Object -First 1
+          Expand-Archive $zip.FullName -DestinationPath "$env:RUNNER_TEMP\portable" -Force
+          $py = (Get-ChildItem "$env:RUNNER_TEMP\portable" -Recurse -Filter python.exe | Select-Object -First 1).FullName
+          $ff = (Get-ChildItem "$env:RUNNER_TEMP\portable" -Recurse -Filter ffmpeg.exe | Select-Object -First 1).FullName
+          $eng = Get-ChildItem "$env:RUNNER_TEMP\portable" -Recurse -Filter dtai_main.py | Select-Object -First 1
+          "PORTABLE_PY=$py" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+          "PORTABLE_FF=$ff" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+          "python: $py"; "ffmpeg: $ff"; "ai-engine in portable: $($eng.FullName)"
+          & $py -c "import sys; print(sys.version); print(sys.path)"
+          Get-CimInstance Win32_ComputerSystem | Select-Object NumberOfLogicalProcessors, TotalPhysicalMemory | Format-List
+      - name: 缓存 AI 组件下载
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}\ai\.downloads
+          key: ai-dl-win-${{ env.LLM }}-${{ hashFiles('internal/aiengine/manifest.json') }}
+      - name: 下载 AI 组件（dtai install，真实清单）
+        run: |
+          go build -o "$env:RUNNER_TEMP\dtai.exe" ./internal/aiengine/cmd/dtai
+          & "$env:RUNNER_TEMP\dtai.exe" list
+          $t = Get-Date
+          & "$env:RUNNER_TEMP\dtai.exe" install -root "$env:RUNNER_TEMP\ai" py-ort py-ocr py-speech m-table m-lama m-asr m-diar llama $env:LLM
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          "下载 + 安装用时：$((Get-Date) - $t)"
+          Get-ChildItem "$env:RUNNER_TEMP\ai" -Directory | ForEach-Object { Get-ChildItem $_.FullName -Directory } | ForEach-Object {
+            $s = (Get-ChildItem $_.FullName -Recurse -File | Measure-Object Length -Sum).Sum
+            "{0,-12} {1,10:N1} MB" -f $_.Name, ($s / 1MB)
+          }
+          Get-ChildItem "$env:RUNNER_TEMP\ai\bin\llama" | Select-Object -First 8 Name
+      - name: 准备测试素材（多说话人中文录音、扫描版 PDF）
+        run: |
+          New-Item -ItemType Directory -Force "$env:RUNNER_TEMP\media" | Out-Null
+          Invoke-WebRequest -Uri 'https://huggingface.co/csukuangfj/speaker-embedding-models/resolve/main/0-four-speakers-zh.wav' -OutFile "$env:RUNNER_TEMP\media\4spk.wav"
+          # 录屏场景：把音频封装进 mp4（视频轨 + AAC 音轨），用内置 FFmpeg 提取
+          & $env:PORTABLE_FF -v error -y -f lavfi -i color=c=black:s=320x240:d=57 -i "$env:RUNNER_TEMP\media\4spk.wav" -shortest -c:v libx264 -c:a aac "$env:RUNNER_TEMP\media\会议录屏.mp4"
+          & $env:PORTABLE_PY -c "import fitz,sys; d=fitz.open(); [d.new_page(width=595,height=842).insert_image(fitz.Rect(20,20,575,520), filename=sys.argv[1]) for i in range(2)]; d.save(sys.argv[2])" "ai-engine\tests\samples\doc_table.png" "$env:RUNNER_TEMP\media\扫描件.pdf"
+          Get-ChildItem "$env:RUNNER_TEMP\media"
+      - name: AI 引擎冒烟测试（便携版内置 Python，真实模型）
+        env:
+          DT_AI_ROOT: ${{ runner.temp }}\ai
+          DT_AI_OUT: ${{ runner.temp }}\ai-out
+          DT_AI_AUDIO: ${{ runner.temp }}\media\会议录屏.mp4
+          DT_AI_SCANNED_PDF: ${{ runner.temp }}\media\扫描件.pdf
+        run: |
+          $env:DT_TEST_PYTHON = $env:PORTABLE_PY
+          $env:DT_FFMPEG = $env:PORTABLE_FF
+          $env:DT_AI_LLM = $env:LLM
+          New-Item -ItemType Directory -Force $env:DT_AI_OUT | Out-Null
+          & $env:PORTABLE_PY -B -s ai-engine\dtai_main.py selftest --root $env:DT_AI_ROOT
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          go test -count=1 -v -timeout 50m -run TestEngineSmoke ./internal/aiengine/ 2>&1 | Tee-Object -FilePath "$env:DT_AI_OUT\engine-smoke.log"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+      - name: 上传测试输出
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-windows-smoke-results
+          path: |
+            ${{ runner.temp }}\ai-out
+          retention-days: 14
