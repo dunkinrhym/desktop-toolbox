@@ -46,8 +46,8 @@ jobs:
         run: |
           bash scripts/build.sh
           mkdir -p out
-          cp "dist/桌面工具箱-Setup-x64.exe" out/DesktopToolbox-Setup-x64.exe
-          cp "dist/桌面工具箱-便携版-x64.zip" out/DesktopToolbox-Portable-x64.zip
+          cp "dist/DesktopToolbox-0.2.0-Setup-x64.exe" out/DesktopToolbox-Setup-x64.exe
+          cp "dist/DesktopToolbox-0.2.0-Portable-x64.zip" out/DesktopToolbox-Portable-x64.zip
           echo "${GITHUB_SHA}" > out/COMMIT.txt
           sha256sum out/* | tee out/SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
@@ -142,8 +142,9 @@ jobs:
         run: |
           echo "tag=v$(sed -n 's/.*"productVersion": *"\([^"]*\)".*/\1/p' wails.json | head -1)" >> "$GITHUB_OUTPUT"
           mkdir dist
-          cp out/DesktopToolbox-Setup-x64.exe "dist/桌面工具箱-Setup-x64.exe"
-          cp out/DesktopToolbox-Portable-x64.zip "dist/桌面工具箱-便携版-x64.zip"
+          # GitHub 会去掉附件名里的中文，所以用英文文件名
+          cp out/DesktopToolbox-Setup-x64.exe "dist/DesktopToolbox-0.2.0-Setup-x64.exe"
+          cp out/DesktopToolbox-Portable-x64.zip "dist/DesktopToolbox-0.2.0-Portable-x64.zip"
           (cd dist && sha256sum * > SHA256SUMS.txt)
           ls -la dist
       - uses: softprops/action-gh-release@v2
@@ -158,8 +159,8 @@ jobs:
 
             | 文件 | 说明 |
             | --- | --- |
-            | `桌面工具箱-Setup-x64.exe` | 安装包（约 93 MB），双击安装 |
-            | `桌面工具箱-便携版-x64.zip` | 便携版，解压即用 |
+            | `DesktopToolbox-0.2.0-Setup-x64.exe` | 安装包（约 93 MB），双击安装，装好后名为「桌面工具箱」 |
+            | `DesktopToolbox-0.2.0-Portable-x64.zip` | 便携版，解压即用 |
 
             ## 0.2.0 新功能（全部本地离线）
             - 截图工具栏：存桌面、截图识字（中英文、链接可点）、翻译（英⇄中）、改写（润色/精简/扩写/正式 + 自定义指令）
