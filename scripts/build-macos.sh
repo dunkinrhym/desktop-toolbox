@@ -19,7 +19,7 @@ ARCH="${1:-arm64}"
 case "$ARCH" in
   arm64) GOARCH=arm64; PBS_ARCH=aarch64; PIP_PLAT=macosx_12_0_arm64; FF_ARCH=arm64 ;;
   x64|amd64|x86_64) ARCH=x64; GOARCH=amd64; PBS_ARCH=x86_64; PIP_PLAT=macosx_12_0_x86_64; FF_ARCH=amd64 ;;
-  *) echo "未知架构：$ARCH（应为 arm64 或 x64）" >&2; exit 2 ;;
+  *) echo "未知架构：${ARCH}（应为 arm64 或 x64）" >&2; exit 2 ;;
 esac
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -34,12 +34,12 @@ APP_NAME="桌面工具箱"
 DMG="dist/DesktopToolbox-$VERSION-macOS-$ARCH.dmg"
 HOST_PY="${HOST_PY:-python3}"            # 宿主 Python 3.12（用于 pip 交叉安装与预编译 .pyc）
 
-echo "==> 构建 macOS $ARCH（版本 $VERSION）"
+echo "==> 构建 macOS ${ARCH}（版本 ${VERSION}）"
 "$HOST_PY" -c 'import sys; assert sys.version_info[:2]==(3,12), "需要宿主 Python 3.12，当前 "+sys.version'
 mkdir -p "$DL" dist
 rm -rf "$STAGE" && mkdir -p "$STAGE/scripts" "$STAGE/ffmpeg"
 
-echo "==> 1/6 内置 Python（python-build-standalone $PBS_TAG / CPython $PY_VER / $PBS_ARCH）"
+echo "==> 1/6 内置 Python（python-build-standalone $PBS_TAG / CPython $PY_VER / ${PBS_ARCH}）"
 PBS_FILE="cpython-$PY_VER+$PBS_TAG-$PBS_ARCH-apple-darwin-install_only.tar.gz"
 PBS_URL="https://github.com/astral-sh/python-build-standalone/releases/download/$PBS_TAG/${PBS_FILE//+/%2B}"
 [ -f "$DL/$PBS_FILE" ] || curl -fL --retry 3 -o "$DL/$PBS_FILE" "$PBS_URL"
@@ -54,7 +54,7 @@ rm -rf "$PYHOME/lib/python3.12/test" "$PYHOME/lib/python3.12/idlelib" "$PYHOME/l
        "$PYHOME/lib/python3.12/lib-dynload/_tkinter"*.so
 mkdir -p "$SP"
 
-echo "==> 2/6 安装转换依赖（pip --platform $PIP_PLAT）"
+echo "==> 2/6 安装转换依赖（pip --platform ${PIP_PLAT}）"
 "$HOST_PY" -m pip install --disable-pip-version-check --no-compile --upgrade \
   --target "$SP" --platform "$PIP_PLAT" --python-version 3.12 --implementation cp --only-binary=:all: \
   pdf2docx==0.5.13 python-docx markdown "PyMuPDF>=1.26.7,<1.27" "opencv-python-headless<4.13" "numpy<2.4"
@@ -64,7 +64,7 @@ cp resources/scripts/convert.py "$STAGE/scripts/"
 # 预编译 .pyc（unchecked-hash：不校验源码时间戳；.app 内目录不可写，预编译显著加快启动）
 "$HOST_PY" -m compileall -q -j 0 --invalidation-mode unchecked-hash "$PYHOME/lib/python3.12" "$STAGE/scripts" >/dev/null || true
 
-echo "==> 3/6 内置 FFmpeg（$FF_ARCH）"
+echo "==> 3/6 内置 FFmpeg（${FF_ARCH}）"
 FF_ZIP="$DL/ffmpeg-$FF_ARCH.zip"
 if [ ! -f "$FF_ZIP" ]; then
   curl -fL --retry 3 -o "$FF_ZIP" "https://ffmpeg.martin-riedl.de/redirect/latest/macos/$FF_ARCH/release/ffmpeg.zip" \
@@ -80,7 +80,7 @@ cat > "$STAGE/ffmpeg/LICENSE.txt" <<'TXT'
 FFmpeg 源代码：https://ffmpeg.org/download.html
 TXT
 
-echo "==> 4/6 编译 macOS 程序（wails build darwin/$GOARCH）"
+echo "==> 4/6 编译 macOS 程序（wails build darwin/${GOARCH}）"
 export MACOSX_DEPLOYMENT_TARGET="$MIN_MACOS"
 export CGO_CFLAGS="${CGO_CFLAGS:-} -mmacosx-version-min=$MIN_MACOS"
 export CGO_LDFLAGS="${CGO_LDFLAGS:-} -mmacosx-version-min=$MIN_MACOS"
@@ -138,7 +138,7 @@ rm -rf "$DMG_SRC" && mkdir -p "$DMG_SRC"
 ditto "$APP" "$DMG_SRC/$APP_NAME.app"
 ln -s /Applications "$DMG_SRC/应用程序"
 cat > "$DMG_SRC/安装说明.txt" <<TXT
-桌面工具箱 $VERSION（macOS $( [ "$ARCH" = arm64 ] && echo "Apple 芯片 M1/M2/M3/M4" || echo "Intel 芯片" ) 版）
+桌面工具箱 ${VERSION}（macOS $( [ "$ARCH" = arm64 ] && echo "Apple 芯片 M1/M2/M3/M4" || echo "Intel 芯片" ) 版）
 
 1. 把“桌面工具箱”拖到“应用程序”文件夹。
 2. 本程序未经 Apple 公证（没有开发者证书），第一次打开时：
