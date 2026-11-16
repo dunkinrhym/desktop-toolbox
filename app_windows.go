@@ -4,8 +4,10 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -133,7 +135,28 @@ func (a *App) shutdown(ctx context.Context) {
 }
 
 func (a *App) onSecondInstance(data options.SecondInstanceData) {
-	a.showMain("")
+	// --show=<页面>：切换到指定页面（冒烟测试逐页打开各工具时使用）
+	view := ""
+	for _, s := range data.Args {
+		if strings.HasPrefix(s, "--show=") {
+			view = strings.TrimPrefix(s, "--show=")
+		}
+	}
+	a.showMain(view)
+}
+
+// UIProbe 前端切换页面后回报页面是否正常渲染。仅在设置了环境变量 DT_UI_PROBE（文件路径）时写入，供冒烟测试校验。
+func (a *App) UIProbe(view string, ok bool, detail string) {
+	p := os.Getenv("DT_UI_PROBE")
+	if p == "" {
+		return
+	}
+	f, err := os.OpenFile(p, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	fmt.Fprintf(f, "%s\t%v\t%s\n", view, ok, detail)
 }
 
 // ---------------------------------------------------------------- window control

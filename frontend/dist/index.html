@@ -13,7 +13,7 @@
       <img src="logo.png" alt="" class="brand-logo">
       <div>
         <div class="brand-name">桌面工具箱</div>
-        <div class="brand-sub" id="ver">v0.1.0</div>
+        <div class="brand-sub" id="ver">v0.2.0</div>
       </div>
     </div>
     <nav>
@@ -166,7 +166,7 @@
     <section class="view" id="view-convert">
       <header class="view-head">
         <h1>格式转换</h1>
-        <p>PDF 转 Word、Markdown 转 Word，支持批量，完全离线</p>
+        <p>PDF 转 Word（含扫描版 OCR）、Markdown 转 Word，支持批量，完全离线</p>
       </header>
       <div class="drop card" id="drop">
         <div class="drop-icon">📄</div>
@@ -187,7 +187,7 @@
       <div class="card conv-list" id="conv-list">
         <div class="empty" id="conv-empty"><div class="muted">还没有添加文件</div></div>
       </div>
-      <div class="note">提示：扫描件/图片型 PDF 没有可提取的文字，需要 OCR 识别，本工具不包含 OCR，转换时会给出提示。</div>
+      <div class="note">提示：扫描件/图片型 PDF 会自动改用离线 OCR 识别后生成 Word（首次需下载“文字识别 / 版面分析”组件）。</div>
     </section>
 
     <!-- 录屏 -->

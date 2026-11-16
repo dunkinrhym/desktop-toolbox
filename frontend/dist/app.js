@@ -99,7 +99,16 @@ on('ui:mode', m => {
     clipFocus = 0;
     loadClips();
     setTimeout(() => $('#clip-q').focus(), 80);
-  } else if (m.view) showView(m.view);
+  } else if (m.view) {
+    showView(m.view);
+    // 冒烟测试：回报页面是否渲染成功（主程序仅在设置 DT_UI_PROBE 时记录）
+    setTimeout(() => {
+      const el = document.getElementById('view-' + m.view);
+      const ok = !!el && el.classList.contains('active') && el.offsetHeight > 100 && !!el.querySelector('h1');
+      const btns = el ? el.querySelectorAll('button').length : 0;
+      try { API().UIProbe(m.view, ok, `h1=${el && el.querySelector('h1') ? el.querySelector('h1').textContent : ''} buttons=${btns}`); } catch { }
+    }, 800);
+  }
 });
 
 /* ------------------------------------------------------------ 文件搜索 */
@@ -570,7 +579,7 @@ on('convert:file', ev => {
   const f = C.files.find(x => x.path === ev.file);
   if (!f) return;
   Object.assign(f, { status: ev.status, pct: ev.pct || f.pct, msg: ev.msg || '', output: ev.output || f.output, error: ev.error || '' });
-  if (ev.status === 'error' && ev.code === 'scanned') f.error = '⚠ ' + ev.error;
+  if (ev.status === 'error' && ev.code === 'scanned') { f.error = '⚠ ' + ev.error; if (!C.ocrAsked) { C.ocrAsked = true; aiReady('doc').catch(() => {}); } }
   renderConv();
 });
 on('convert:done', () => {

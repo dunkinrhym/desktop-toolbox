@@ -10,7 +10,7 @@ SetCompressorDictSize 64
 !define INFO_PROJECTNAME    "DesktopToolbox"
 !define INFO_COMPANYNAME    "DesktopToolbox"
 !define INFO_PRODUCTNAME    "桌面工具箱"
-!define INFO_PRODUCTVERSION "0.1.0"
+!define INFO_PRODUCTVERSION "0.2.0"
 !define INFO_COPYRIGHT      "Copyright © 2026"
 !define PRODUCT_EXECUTABLE  "DesktopToolbox.exe"
 !define UNINST_KEY_NAME     "DesktopToolbox"

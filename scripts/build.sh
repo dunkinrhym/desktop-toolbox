@@ -7,7 +7,7 @@ cd "$ROOT"
 TOOLS="${TOOLS:-/workspace/tools}"
 [ -f "$TOOLS/env.sh" ] && source "$TOOLS/env.sh"
 
-VERSION=0.1.0
+VERSION=0.2.0
 PY_VER=3.12.10
 DL=third_party/dl
 STAGE=build/stage/resources
@@ -75,11 +75,11 @@ rm -rf build/portable && mkdir -p "$PORT"
 cp build/bin/DesktopToolbox.exe "$PORT/"
 cp -r "$STAGE" "$PORT/resources"
 cat > "$PORT/使用说明.txt" <<'TXT'
-桌面工具箱 便携版 v0.1.0
+桌面工具箱 便携版 v0.2.0
 双击 DesktopToolbox.exe 运行，关闭窗口后驻留在系统托盘。
 快捷键：Alt+Space 显示主窗口；Ctrl+Alt+A 截图；Ctrl+Shift+V 剪贴板历史。
 需要 Windows 10/11 及 Microsoft Edge WebView2 运行时（Win11 自带，Win10 一般已随 Edge 安装）。
-数据保存在 %APPDATA%\DesktopToolbox。
+数据保存在 %APPDATA%\DesktopToolbox；离线 AI 模型首次使用时下载到 %APPDATA%\DesktopToolbox\ai，之后完全离线。
 TXT
 (cd build/portable && rm -f "../../$DIST/桌面工具箱-便携版-x64.zip" && zip -q -r -6 "../../$DIST/桌面工具箱-便携版-x64.zip" 桌面工具箱)
 ls -la "$DIST"

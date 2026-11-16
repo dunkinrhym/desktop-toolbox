@@ -94,7 +94,7 @@ def check_pdf(path):
         if per_page < 10 and image_pages > 0:
             raise KnownError(
                 "scanned",
-                "该 PDF 是扫描件/图片型 PDF（几乎没有可提取的文字），需要 OCR 识别，本工具不包含 OCR 功能。",
+                "该 PDF 是扫描件/图片型 PDF（几乎没有可提取的文字），需要 OCR 识别。请先下载离线 AI 的“文字识别 / 版面分析”组件，下载后会自动用 OCR 转换。",
             )
         return n
     finally:

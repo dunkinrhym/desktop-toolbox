@@ -161,6 +161,8 @@ Step 'app --selftest' {
 # ------------------------------------------------------------------ 3. 启动程序、主窗口、截图、单实例
 Step 'launch + main window' {
   Get-Process DesktopToolbox -ErrorAction SilentlyContinue | Stop-Process -Force
+  $env:DT_UI_PROBE = Join-Path $OutDir 'ui-probe.txt'
+  Remove-Item $env:DT_UI_PROBE -ErrorAction SilentlyContinue
   $p = Start-Process -FilePath $Exe -PassThru
   Start-Sleep -Seconds 15
   $p.Refresh()
@@ -226,6 +228,37 @@ Step 'global hotkeys (SendInput)' {
   Assert $gone "按 Esc 后截图遮罩没有关闭（遮罩在前台=$ovFg）"
   Assert ($mw -gt 800) "Alt+Space 后主窗口未恢复正常尺寸（宽 $mw）"
   "Alt+Space hide+show OK; Ctrl+Shift+V popup ${pw}x${ph} (second press hides=$popupHidden); main restored width=$mw; Ctrl+Alt+A overlay shown (foreground=$ovFg) and closed by Esc"
+}
+Step 'open every tool page' {
+  # 通过第二实例 --show=<页面> 让主程序逐页切换，前端回报渲染结果到 DT_UI_PROBE，并逐页截图
+  $views = 'search','shot','clipboard','convert','record','ocr','inpaint','meeting','settings'
+  foreach ($v in $views) {
+    $p2 = Start-Process -FilePath $Exe -ArgumentList "--show=$v" -PassThru
+    $p2.WaitForExit(15000) | Out-Null
+    Start-Sleep -Milliseconds 1800
+    Save-Screenshot "ui-view-$v.png" | Out-Null
+  }
+  Assert (Test-Path $env:DT_UI_PROBE) "前端没有回报任何页面（ui-probe.txt 不存在）"
+  $lines = Get-Content $env:DT_UI_PROBE -Encoding utf8
+  $lines | ForEach-Object { Log "  $_" }
+  $bad = @()
+  foreach ($v in $views) {
+    $hit = $lines | Where-Object { $_ -like "$v`t*" } | Select-Object -Last 1
+    if (-not $hit -or ($hit -split "`t")[1] -ne 'true') { $bad += $v }
+  }
+  Assert ($bad.Count -eq 0) "以下页面未正常打开：$($bad -join ', ')"
+  "all $($views.Count) pages rendered"
+}
+Step 'app icon (exe resource)' {
+  Add-Type -AssemblyName System.Drawing
+  $ico = [System.Drawing.Icon]::ExtractAssociatedIcon($Exe)
+  $png = Join-Path $OutDir 'exe-icon.png'
+  $ico.ToBitmap().Save($png, [System.Drawing.Imaging.ImageFormat]::Png)
+  $bmp = $ico.ToBitmap()
+  $orange = 0
+  for ($x = 0; $x -lt $bmp.Width; $x++) { for ($y = 0; $y -lt $bmp.Height; $y++) { $c = $bmp.GetPixel($x, $y); if ($c.A -gt 200 -and $c.R -gt 200 -and $c.G -gt 90 -and $c.G -lt 190 -and $c.B -lt 120) { $orange++ } } }
+  Assert ($orange -gt 0) "exe 图标中没有橙色像素，可能仍是旧图标"
+  "icon $($bmp.Width)x$($bmp.Height) orange px=$orange -> $png"
 }
 Step 'single instance' {
   $first = @(Get-Process DesktopToolbox -ErrorAction SilentlyContinue)
