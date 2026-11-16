@@ -23,7 +23,7 @@ const (
 
 // OverlayResult 用户的选择结果。Rect 为相对于截图图像的坐标；Screen 为虚拟桌面坐标。
 type OverlayResult struct {
-	Action string // copy | save | record | cancel
+	Action string // copy | save | desktop | ocr | record | cancel
 	Rect   image.Rectangle
 	Screen image.Rectangle
 	Image  *image.RGBA // 截取到的整幅虚拟桌面画面
@@ -224,6 +224,8 @@ func (o *overlay) layoutButtons() {
 		o.buttons = append(o.buttons,
 			obutton{label: "取消", action: "cancel"},
 			obutton{label: "保存", action: "save"},
+			obutton{label: "存桌面", action: "desktop"},
+			obutton{label: "识字/翻译/改写", action: "ocr"},
 			obutton{label: "复制", action: "copy", primary: true})
 	default:
 		o.buttons = append(o.buttons,

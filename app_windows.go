@@ -54,6 +54,7 @@ type App struct {
 	convs  convertState
 	rec    recordState
 	shot   shotState
+	ai     aiState
 }
 
 // NewApp 创建应用。
@@ -124,6 +125,7 @@ func (a *App) domReady(ctx context.Context) {}
 func (a *App) shutdown(ctx context.Context) {
 	a.CancelSearch()
 	a.CancelConvert()
+	a.aiShutdown()
 	a.stopRecordingSync()
 	win.UnregisterHotkeys(hotkeys)
 	win.WatchClipboard(false)

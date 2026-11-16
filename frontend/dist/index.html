@@ -27,6 +27,12 @@
         <svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 14h6M12 11l3 3-3 3"/></svg>格式转换</a>
       <a class="nav-item" data-view="record">
         <svg viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10l5-3v10l-5-3z"/></svg>录屏</a>
+      <a class="nav-item" data-view="ocr">
+        <svg viewBox="0 0 24 24"><path d="M4 7V5a1 1 0 0 1 1-1h2M17 4h2a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M7 20H5a1 1 0 0 1-1-1v-2M8 9h8M8 12h8M8 15h5"/></svg>识字 / 转文档</a>
+      <a class="nav-item" data-view="inpaint">
+        <svg viewBox="0 0 24 24"><path d="M15 4l5 5-9 9H6v-5z"/><path d="M4 20h16"/></svg>去水印</a>
+      <a class="nav-item" data-view="meeting">
+        <svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>会议记录</a>
     </nav>
     <div class="sidebar-foot">
       <a class="nav-item small" data-view="settings">
@@ -114,6 +120,23 @@
         </ul>
       </div>
       <div class="card result-card hidden" id="shot-result"></div>
+      <div class="card hidden" id="shot-ai">
+        <div class="toolbar">
+          <button class="btn small" id="sa-desk">保存到桌面</button>
+          <button class="btn small primary" id="sa-ocr">截图识字</button>
+          <button class="btn small" id="sa-tr-en">英译中</button>
+          <button class="btn small" id="sa-tr-zh">中译英</button>
+          <select class="input tiny" id="sa-preset" style="width:120px"><option value="polish">润色</option><option value="concise">精简</option><option value="expand">扩写</option><option value="formal">正式书面语</option></select>
+          <button class="btn small" id="sa-rw">改写文字</button>
+        </div>
+        <input class="input" id="sa-instr" placeholder="自定义改写要求（可选），例如：改成礼貌的邮件回复" style="width:100%;margin-bottom:8px">
+        <div class="ai-prog hidden" id="sa-prog"></div>
+        <div class="shot-pane"><div class="shot-img-wrap" id="sa-wrap"><img id="sa-img"><div class="text-layer" id="sa-layer"></div></div>
+          <div class="shot-side"><div class="toolbar"><b class="grow">识别文字</b><button class="btn small" data-copy="sa-text">复制</button></div>
+          <textarea class="ai-text" id="sa-text" placeholder="点“截图识字”后，文字会显示在这里；也可以直接在左边图片上划词复制"></textarea>
+          <div class="toolbar"><b class="grow">翻译 / 改写结果</b><button class="btn small" data-copy="sa-res">复制</button></div>
+          <textarea class="ai-text" id="sa-res"></textarea></div></div>
+      </div>
     </section>
 
     <!-- 超级复制 -->
@@ -208,6 +231,56 @@
       <div class="card result-card hidden" id="rec-result"></div>
     </section>
 
+
+    <!-- 识字 / 转文档 -->
+    <section class="view" id="view-ocr">
+      <header class="view-head"><h1>识字 / 转文档</h1><p>图片文字识别（中文、英文、链接），图片转 Word / Excel（尽量保持原排版，表格转为真实表格）。全部在本机离线运行</p></header>
+      <div class="card toolbar">
+        <button class="btn primary" id="ocr-pick">选择图片…</button>
+        <span class="grow muted" id="ocr-file">未选择</span>
+        <button class="btn" data-ocr="ocr">识别文字</button>
+        <button class="btn" data-ocr="image2docx">转 Word</button>
+        <button class="btn" data-ocr="image2xlsx">转 Excel</button>
+      </div>
+      <div class="card ai-prog hidden" id="ocr-prog"></div>
+      <div class="card hidden" id="ocr-out"></div>
+      <div class="muted">扫描版（图片型）PDF 请在“格式转换”中直接转换，会自动用 OCR 识别。</div>
+    </section>
+
+    <!-- 去水印 -->
+    <section class="view" id="view-inpaint">
+      <header class="view-head"><h1>去水印</h1><p>用画笔涂抹水印区域，AI（LaMa）结合周围画面自动修补。仅限处理你有权使用的图片</p></header>
+      <div class="card toolbar">
+        <button class="btn primary" id="ip-pick">选择图片…</button>
+        <span>画笔</span><input type="range" id="ip-brush" min="5" max="120" value="30">
+        <button class="btn" id="ip-clear">清除涂抹</button>
+        <span class="grow"></span>
+        <button class="btn primary" id="ip-run">去除水印</button>
+      </div>
+      <div class="card ai-prog hidden" id="ip-prog"></div>
+      <div class="card ip-stage hidden" id="ip-stage"><div class="ip-wrap"><img id="ip-img"><canvas id="ip-canvas"></canvas></div></div>
+      <div class="card hidden" id="ip-out"></div>
+    </section>
+
+    <!-- 会议记录 -->
+    <section class="view" id="view-meeting">
+      <header class="view-head"><h1>会议记录</h1><p>录屏或录音 → 分角色逐字稿（说话人1/2…，带时间）→ 本地大模型提炼纪要（摘要、要点、待办）。全部离线</p></header>
+      <div class="card toolbar">
+        <button class="btn primary" id="mt-pick">选择录音 / 录屏…</button>
+        <span class="grow muted" id="mt-file">未选择</span>
+        <span>说话人数</span>
+        <select class="input tiny" id="mt-spk"><option value="0">自动</option><option value="1">不区分</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select>
+        <button class="btn primary" id="mt-run">开始转写</button>
+      </div>
+      <div class="card ai-prog hidden" id="mt-prog"></div>
+      <div class="card hidden" id="mt-out">
+        <div class="toolbar"><h3 class="grow" style="margin:0">纪要</h3><button class="btn small" id="mt-sum">生成纪要</button>
+          <button class="btn small" id="mt-docx">导出 Word</button><button class="btn small" id="mt-md">导出 Markdown</button></div>
+        <pre class="ai-text" id="mt-minutes">（转写完成后点“生成纪要”）</pre>
+        <h3>逐字稿</h3><div id="mt-trans" class="ai-trans"></div>
+      </div>
+    </section>
+
     <!-- 设置 -->
     <section class="view" id="view-settings">
       <header class="view-head">
@@ -223,6 +296,11 @@
         <div class="set-row"><span data-mac="登录时自动启动（后台运行）">开机自动启动（后台运行）</span><label class="switch"><input type="checkbox" id="set-autostart"><span class="slider"></span></label></div>
         <div class="set-row"><span>剪贴板历史与设置保存位置</span><button class="btn small" id="set-datadir">打开文件夹</button></div>
         <div class="set-row"><span data-mac="退出程序（菜单栏图标中也可退出）">退出程序（托盘图标右键也可退出）</span><button class="btn small danger" id="set-quit">退出</button></div>
+      </div>
+      <div class="card">
+        <h3>AI 模型（离线，首次使用时下载）</h3>
+        <div class="muted" id="ai-info" style="margin-bottom:8px"></div>
+        <div id="ai-list"></div>
       </div>
       <div class="card">
         <h3>组件状态</h3>

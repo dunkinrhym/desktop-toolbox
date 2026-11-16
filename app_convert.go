@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
+	"desktoptoolbox/internal/aiengine"
 	"desktoptoolbox/internal/converter"
 )
 
@@ -110,6 +112,22 @@ func (a *App) StartConvert(files []string, outDir string) error {
 			out, err := a.conv.Convert(ctx, f, dst, func(p int, m string) {
 				emit(ConvertEvent{Status: "running", Pct: p, Msg: m})
 			})
+			var sce *converter.ConvertError
+			if err != nil && errors.As(err, &sce) && sce.Code == "scanned" && len(a.AIMissing("doc")) == 0 && ctx.Err() == nil {
+				// 扫描件：改用离线 OCR 识别后生成 Word
+				emit(ConvertEvent{Status: "running", Pct: 2, Msg: "扫描版 PDF，正在用 OCR 识别…"})
+				var res json.RawMessage
+				res, err = a.ai.vision.Call(ctx, "pdf2docx_ocr", map[string]any{"path": f, "output": dst}, func(ev aiengine.Event) {
+					if ev.Event == "progress" {
+						emit(ConvertEvent{Status: "running", Pct: ev.Pct, Msg: ev.Msg})
+					}
+				})
+				if err == nil {
+					var r struct{ Output string }
+					_ = json.Unmarshal(res, &r)
+					out = r.Output
+				}
+			}
 			if err != nil {
 				ev := ConvertEvent{Status: "error", Error: err.Error()}
 				var ce *converter.ConvertError

@@ -85,7 +85,7 @@ function showView(v) {
   $$('.view').forEach(s => s.classList.toggle('active', s.id === 'view-' + v));
   if (v === 'clipboard') { loadClips(); setTimeout(() => $('#clip-q').focus(), 50); }
   if (v === 'search') setTimeout(() => $('#kw').focus(), 50);
-  if (v === 'settings') loadInfo();
+  if (v === 'settings') { loadInfo(); if (typeof loadAI === 'function') loadAI(); }
 }
 $$('.nav-item').forEach(a => a.addEventListener('click', () => showView(a.dataset.view)));
 
@@ -684,3 +684,225 @@ window.addEventListener('load', () => {
   API().IsRecording().then(r => r && setRecUI(true)).catch(() => {});
   $('#kw').focus();
 });
+
+/* ------------------------------------------------------------ 离线 AI（识字 / 翻译 / 改写 / 转文档 / 去水印 / 会议记录） */
+let aiJobSeq = 0;
+const aiHandlers = {};
+on('ai:job', ev => { const h = aiHandlers[ev.job]; if (h) h(ev); });
+function aiProg(el, pct, msg) {
+  if (!el) return;
+  el.classList.remove('hidden');
+  el.innerHTML = `${esc(msg || '')} <div class="ai-bar"><i style="width:${pct || 0}%"></i></div>`;
+}
+/* 检查组件；缺少时询问是否下载 */
+async function aiReady(feature) {
+  const miss = await API().AIMissing(feature);
+  if (!miss || !miss.length) return true;
+  const st = await API().GetAIStatus();
+  const comps = st.components.filter(c => miss.includes(c.id));
+  const size = comps.reduce((s, c) => s + c.size, 0);
+  if (await ask(`此功能需要先下载离线 AI 组件：\n${comps.map(c => '· ' + c.name + '（' + fmtSize(c.size) + '）').join('\n')}\n共约 ${fmtSize(size)}，下载后完全离线使用。现在下载吗？`)) {
+    await call('AIInstall', miss);
+    toast('已开始下载，可在“设置与快捷键 → AI 模型”中查看进度');
+    showView('settings');
+  }
+  return false;
+}
+async function aiRun(cmd, args, progEl, onPartial) {
+  const job = 'j' + (++aiJobSeq);
+  aiHandlers[job] = ev => {
+    if (ev.event === 'progress') aiProg(progEl, ev.pct, ev.msg);
+    if (ev.event === 'partial' && onPartial && ev.data) onPartial(ev.data);
+  };
+  aiProg(progEl, 1, '正在启动离线 AI 引擎…');
+  try { return await API().AIRun(job, cmd, args); }
+  catch (e) { toast(errMsg(e), true); throw e; }
+  finally { delete aiHandlers[job]; if (progEl) progEl.classList.add('hidden'); }
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-copy]');
+  if (b) { const t = $('#' + b.dataset.copy).value; if (t) call('CopyText', t).then(() => toast('已复制')); }
+});
+
+/* ---- 截图结果：存桌面 / 识字 / 翻译 / 改写 ---- */
+const SA = { path: '', ocr: null };
+async function openShotAI(autoOcr) {
+  let s;
+  try { s = await API().GetLastShot(); } catch { return; }
+  SA.path = s.path; SA.ocr = null;
+  $('#shot-ai').classList.remove('hidden');
+  $('#sa-img').src = s.url; $('#sa-layer').innerHTML = ''; $('#sa-text').value = ''; $('#sa-res').value = '';
+  if (autoOcr) shotOCR();
+}
+function renderTextLayer(r) {
+  const img = $('#sa-img'), layer = $('#sa-layer');
+  const sc = img.clientWidth / r.width;
+  layer.innerHTML = '';
+  for (const ln of r.lines) {
+    const xs = ln.box.map(p => p[0]), ys = ln.box.map(p => p[1]);
+    const x = Math.min(...xs) * sc, y = Math.min(...ys) * sc, w = (Math.max(...xs) - Math.min(...xs)) * sc, h = (Math.max(...ys) - Math.min(...ys)) * sc;
+    const sp = document.createElement('span');
+    sp.textContent = ln.text + '\n';
+    sp.style.cssText = `left:${x}px;top:${y}px;font-size:${h * 0.9}px;height:${h}px`;
+    layer.appendChild(sp);
+    const nat = sp.getBoundingClientRect().width || 1;
+    sp.style.transform = `scaleX(${w / nat})`;
+  }
+}
+async function shotOCR() {
+  if (!(await aiReady('ocr'))) return;
+  const r = await aiRun('ocr', { path: SA.path }, $('#sa-prog'));
+  SA.ocr = r;
+  $('#sa-text').value = r.text;
+  if ($('#sa-img').complete) renderTextLayer(r); else $('#sa-img').onload = () => renderTextLayer(r);
+  if (!r.text) toast('没有识别到文字');
+}
+async function shotText() {
+  const sel = String(window.getSelection() || '').trim();
+  if (sel) return sel;
+  if (!$('#sa-text').value) await shotOCR();
+  return $('#sa-text').value;
+}
+async function shotLLM(cmd, args) {
+  const text = await shotText();
+  if (!text) return;
+  if (!(await aiReady(cmd === 'translate' ? 'translate' : 'rewrite'))) return;
+  $('#sa-res').value = '';
+  const r = await aiRun(cmd, Object.assign({ text }, args), $('#sa-prog'), d => { $('#sa-res').value = d.text || ''; });
+  $('#sa-res').value = r.text;
+}
+$('#sa-desk').addEventListener('click', async () => { const p = await call('SaveShotToDesktop'); toast('已保存到桌面：' + baseName(p)); });
+$('#sa-ocr').addEventListener('click', () => shotOCR().catch(() => {}));
+$('#sa-tr-en').addEventListener('click', () => shotLLM('translate', { direction: 'en2zh' }).catch(() => {}));
+$('#sa-tr-zh').addEventListener('click', () => shotLLM('translate', { direction: 'zh2en' }).catch(() => {}));
+$('#sa-rw').addEventListener('click', () => shotLLM('rewrite', { preset: $('#sa-preset').value, instruction: $('#sa-instr').value }).catch(() => {}));
+on('shot:done', ev => {
+  if (ev.action === 'ocr') { showView('shot'); openShotAI(true); }
+  else if (ev.action === 'copy' || ev.action === 'save' || ev.action === 'desktop') openShotAI(false);
+  if (ev.action === 'desktop' && ev.path) toast('已保存到桌面：' + baseName(ev.path));
+});
+
+/* ---- 识字 / 转文档 ---- */
+let ocrFile = '';
+$('#ocr-pick').addEventListener('click', async () => { const p = await call('PickImage'); if (p) { ocrFile = p; $('#ocr-file').textContent = p; } });
+$$('[data-ocr]').forEach(b => b.addEventListener('click', async () => {
+  if (!ocrFile) { toast('请先选择图片', true); return; }
+  const cmd = b.dataset.ocr;
+  if (!(await aiReady(cmd === 'ocr' ? 'ocr' : 'doc'))) return;
+  const out = $('#ocr-out');
+  try {
+    if (cmd === 'ocr') {
+      const r = await aiRun('ocr', { path: ocrFile }, $('#ocr-prog'));
+      out.innerHTML = `<div class="toolbar"><b class="grow">识别结果</b><button class="btn small" data-copy="ocr-text">复制全部</button></div><textarea class="ai-text" id="ocr-text"></textarea>`;
+      $('#ocr-text').value = r.text;
+    } else {
+      const ext = cmd === 'image2docx' ? '.docx' : '.xlsx';
+      const dst = ocrFile.replace(/\.[^.\\/]+$/, '') + ext;
+      const r = await aiRun(cmd, { path: ocrFile, output: dst }, $('#ocr-prog'));
+      out.innerHTML = `<span class="ok">✔</span> 已生成：${esc(r.output)} <button class="btn small" data-open="${esc(r.output)}">打开</button> <button class="btn small" data-folder="${esc(r.output)}">${FOLDER_LABEL}</button>`;
+    }
+    out.classList.remove('hidden');
+  } catch { }
+}));
+document.addEventListener('click', e => {
+  const o = e.target.closest('[data-open]'); if (o) call('OpenPath', o.dataset.open).catch(() => {});
+  const f = e.target.closest('[data-folder]'); if (f) call('ShowInFolder', f.dataset.folder).catch(() => {});
+});
+
+/* ---- 去水印 ---- */
+const IP = { file: '', drawing: false };
+$('#ip-pick').addEventListener('click', async () => {
+  const p = await call('PickImage'); if (!p) return;
+  IP.file = p;
+  const img = $('#ip-img');
+  img.onload = () => { const c = $('#ip-canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight; c.getContext('2d').clearRect(0, 0, c.width, c.height); };
+  img.src = await call('ReadImageDataURL', p);
+  $('#ip-stage').classList.remove('hidden'); $('#ip-out').classList.add('hidden');
+});
+function ipDraw(e) {
+  const c = $('#ip-canvas'), r = c.getBoundingClientRect(), k = c.width / r.width;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = 'rgba(255,40,40,1)';
+  ctx.beginPath(); ctx.arc((e.clientX - r.left) * k, (e.clientY - r.top) * k, $('#ip-brush').value * k / 2, 0, Math.PI * 2); ctx.fill();
+}
+$('#ip-canvas').addEventListener('mousedown', e => { IP.drawing = true; ipDraw(e); });
+$('#ip-canvas').addEventListener('mousemove', e => { if (IP.drawing) ipDraw(e); });
+window.addEventListener('mouseup', () => { IP.drawing = false; });
+$('#ip-clear').addEventListener('click', () => { const c = $('#ip-canvas'); c.getContext('2d').clearRect(0, 0, c.width, c.height); });
+$('#ip-run').addEventListener('click', async () => {
+  if (!IP.file) { toast('请先选择图片', true); return; }
+  if (!(await aiReady('inpaint'))) return;
+  const mask = await call('WriteTempPNG', $('#ip-canvas').toDataURL('image/png'));
+  try {
+    const r = await aiRun('inpaint', { path: IP.file, mask }, $('#ip-prog'));
+    $('#ip-img').src = await call('ReadImageDataURL', r.output);
+    $('#ip-clear').click();
+    IP.file = r.output;
+    const out = $('#ip-out');
+    out.innerHTML = `<span class="ok">✔</span> 已保存：${esc(r.output)} <button class="btn small" data-open="${esc(r.output)}">打开</button> <button class="btn small" data-folder="${esc(r.output)}">${FOLDER_LABEL}</button> <span class="muted">（可继续涂抹残留处再次去除）</span>`;
+    out.classList.remove('hidden');
+  } catch { }
+});
+
+/* ---- 会议记录 ---- */
+const MT = { file: '', res: null, minutes: '' };
+$('#mt-pick').addEventListener('click', async () => { const p = await call('PickMedia'); if (p) { MT.file = p; $('#mt-file').textContent = p; } });
+function fmtTs(s) { s = Math.floor(s); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60, p = n => String(n).padStart(2, '0'); return (h ? p(h) + ':' : '') + p(m) + ':' + p(x); }
+$('#mt-run').addEventListener('click', async () => {
+  if (!MT.file) { toast('请先选择录音或录屏文件', true); return; }
+  if (!(await aiReady('meeting'))) return;
+  try {
+    const r = await aiRun('transcribe', { path: MT.file, speakers: +$('#mt-spk').value }, $('#mt-prog'));
+    MT.res = r; MT.minutes = '';
+    $('#mt-trans').innerHTML = r.segments.map(s => `<div><span class="spk">说话人${s.speaker}</span><span class="ts">${fmtTs(s.start)}</span><div>${esc(s.text)}</div></div>`).join('');
+    $('#mt-minutes').textContent = '（点“生成纪要”用本地大模型提炼摘要、要点和待办）';
+    $('#mt-out').classList.remove('hidden');
+    toast(`转写完成：${r.speakers} 位说话人`);
+  } catch { }
+});
+$('#mt-sum').addEventListener('click', async () => {
+  if (!MT.res) return;
+  if (!(await aiReady('summary'))) return;
+  try {
+    const r = await aiRun('summarize', { segments: MT.res.segments }, $('#mt-prog'), d => { $('#mt-minutes').textContent = d.text || ''; });
+    MT.minutes = r.markdown; $('#mt-minutes').textContent = r.markdown;
+  } catch { }
+});
+async function mtExport(fmt) {
+  if (!MT.res) return;
+  const name = baseName(MT.file).replace(/\.[^.]+$/, '') + '_会议记录.' + fmt;
+  const out = await call('SaveAs', '导出会议记录', name, fmt === 'md' ? '*.md' : '*.docx');
+  if (!out) return;
+  const r = await aiRun('export_minutes', { format: fmt, output: out, title: baseName(MT.file).replace(/\.[^.]+$/, '') + ' 会议记录', source: MT.file, duration: MT.res.duration, segments: MT.res.segments, minutes: MT.minutes });
+  toast('已导出：' + baseName(r.output));
+}
+$('#mt-docx').addEventListener('click', () => mtExport('docx').catch(() => {}));
+$('#mt-md').addEventListener('click', () => mtExport('md').catch(() => {}));
+
+/* ---- 设置：AI 模型 ---- */
+const aiDl = {};
+async function loadAI() {
+  let st; try { st = await API().GetAIStatus(); } catch (e) { return; }
+  const names = { 'llm-8b': 'Qwen3-8B', 'llm-4b': 'Qwen3-4B', 'llm-1.7b': 'Qwen3-1.7B' };
+  $('#ai-info').innerHTML = `本机内存 ${st.ramGB.toFixed(1)} GB，推荐大模型：${esc(names[st.recommend] || st.recommend)}。翻译 / 改写 / 纪要使用：
+    <select class="input tiny" id="ai-llm" style="width:130px">${Object.keys(names).map(k => `<option value="${k}" ${k === st.llm ? 'selected' : ''}>${names[k]}</option>`).join('')}</select>
+    <br>存放位置：${esc(st.root)}`;
+  $('#ai-list').innerHTML = st.components.map(c => {
+    const d = aiDl[c.id];
+    const right = c.installed ? `<span class="ok">已安装 ${fmtSize(c.diskSize)}</span> <button class="btn small danger" data-ai-del="${c.id}">删除</button>`
+      : (c.busy || d) ? `<div class="ai-bar"><i style="width:${d ? Math.floor(100 * d.done / Math.max(1, d.total)) : 0}%"></i></div><span class="muted">${d ? fmtSize(d.done) + ' / ' + fmtSize(d.total) + (d.speed ? '，' + fmtSize(d.speed) + '/s' : '') : '等待…'}</span> <button class="btn small" data-ai-cancel="${c.id}">取消</button>`
+      : `<button class="btn small" data-ai-get="${c.id}">下载 ${fmtSize(c.size)}</button>`;
+    return `<div class="ai-row"><div class="grow"><b>${esc(c.name)}</b><div class="muted">${esc(c.desc)}</div></div>${right}</div>`;
+  }).join('');
+}
+on('ai:dl', p => {
+  if (p.stage === 'done' || p.stage === 'error') { delete aiDl[p.component]; if (p.error) toast('下载失败：' + p.error, true); else toast('组件已就绪'); }
+  else aiDl[p.component] = p;
+  if (currentView === 'settings') { clearTimeout(loadAI.t); loadAI.t = setTimeout(loadAI, 300); }
+});
+document.addEventListener('click', async e => {
+  const g = e.target.closest('[data-ai-get]'); if (g) { await call('AIInstall', [g.dataset.aiGet]); loadAI(); }
+  const c = e.target.closest('[data-ai-cancel]'); if (c) { API().AICancelInstall(c.dataset.aiCancel); }
+  const d = e.target.closest('[data-ai-del]'); if (d && await ask('删除该组件？以后使用时需要重新下载。')) { await call('AIRemove', d.dataset.aiDel); loadAI(); }
+});
+document.addEventListener('change', e => { if (e.target.id === 'ai-llm') call('SetAILLM', e.target.value).then(() => toast('已切换')); });

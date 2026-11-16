@@ -13,8 +13,8 @@
   "info": {
     "companyName": "DesktopToolbox",
     "productName": "桌面工具箱",
-    "productVersion": "0.1.0",
+    "productVersion": "0.2.0",
     "copyright": "Copyright © 2026",
-    "comments": "桌面工具箱：文件搜索、截图、超级复制、格式转换、录屏"
+    "comments": "桌面工具箱：文件搜索、截图、超级复制、格式转换、录屏、离线 AI（识字、翻译、改写、转文档、去水印、会议记录）"
   }
 }

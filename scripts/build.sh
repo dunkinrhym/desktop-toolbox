@@ -49,6 +49,8 @@ cp "$TMPV"/*.data/data/msvcp140.dll "$TMPV"/*.data/data/msvcp140_1.dll "$TMPV"/*
    "$TMPV"/*.data/data/Scripts/vcruntime140.dll "$TMPV"/*.data/data/Scripts/vcruntime140_1.dll "$STAGE/python/"
 rm -rf "$TMPV"
 cp resources/scripts/convert.py "$STAGE/scripts/"
+# 离线 AI 引擎脚本（模型与 AI 依赖首次使用时下载）
+mkdir -p "$STAGE/ai-engine" && cp -r ai-engine/dtai ai-engine/dtai_main.py "$STAGE/ai-engine/" && find "$STAGE/ai-engine" -name __pycache__ -prune -exec rm -rf {} +
 # 预编译 .pyc（unchecked-hash：不校验源码时间戳）。安装到 Program Files 后 Python 无法写缓存，预编译可显著加快启动。
 # 本机 Python 必须同为 3.12.x（字节码格式一致）
 python3 -c 'import sys; assert sys.version_info[:2]==(3,12), sys.version'

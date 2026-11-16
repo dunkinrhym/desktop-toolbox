@@ -19,6 +19,7 @@ import (
 type shotState struct {
 	mu     sync.Mutex
 	active bool
+	last   []byte // 最近一次截图（PNG），供识字 / 翻译 / 改写 / 存桌面
 }
 
 // StartScreenshot 由界面按钮触发：先隐藏主窗口再截图，完成后恢复主窗口。
@@ -97,7 +98,22 @@ func (a *App) handleShot(r win.OverlayResult) ShotEvent {
 		ev.Error = "图片编码失败：" + err.Error()
 		return ev
 	}
+	a.shot.mu.Lock()
+	a.shot.last = buf.Bytes()
+	a.shot.mu.Unlock()
 	switch r.Action {
+	case "desktop":
+		p := filepath.Join(win.DesktopDir(), timestampName("截图", ".png"))
+		if err := os.WriteFile(p, buf.Bytes(), 0o644); err != nil {
+			ev.Error = "保存失败：" + err.Error()
+			win.MessageBox(AppName, ev.Error, true)
+			return ev
+		}
+		ev.Path = p
+	case "ocr":
+		// 识字 / 翻译 / 改写：复制到剪贴板并打开主窗口的截图页
+		_ = win.SetClipboardImage(img, buf.Bytes())
+		go a.showMain("shot")
 	case "copy":
 		if err := win.SetClipboardImage(img, buf.Bytes()); err != nil {
 			ev.Error = "复制到剪贴板失败：" + err.Error()

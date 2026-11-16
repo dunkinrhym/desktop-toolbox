@@ -74,6 +74,7 @@ type App struct {
 	convs  convertState
 	rec    recordState
 	shot   shotState
+	ai     aiState
 }
 
 // NewApp 创建应用。资源位于 .app/Contents/Resources（开发时退回到可执行文件旁的 resources/）。

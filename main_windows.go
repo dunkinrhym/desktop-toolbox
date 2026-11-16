@@ -19,7 +19,7 @@ var assets embed.FS
 
 const (
 	AppName      = "桌面工具箱"
-	AppVersion   = "0.1.0"
+	AppVersion   = "0.2.0"
 	MainWinClass = "DesktopToolboxMain"
 	UniqueID     = "com.desktoptoolbox.app.7f3c2a"
 )
