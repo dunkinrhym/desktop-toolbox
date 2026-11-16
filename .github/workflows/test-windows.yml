@@ -46,8 +46,8 @@ jobs:
         run: |
           bash scripts/build.sh
           mkdir -p out
-          cp "dist/DesktopToolbox-0.2.0-Setup-x64.exe" out/DesktopToolbox-Setup-x64.exe
-          cp "dist/DesktopToolbox-0.2.0-Portable-x64.zip" out/DesktopToolbox-Portable-x64.zip
+          cp "dist/桌面工具箱-Setup-x64.exe" out/DesktopToolbox-Setup-x64.exe
+          cp "dist/桌面工具箱-便携版-x64.zip" out/DesktopToolbox-Portable-x64.zip
           echo "${GITHUB_SHA}" > out/COMMIT.txt
           sha256sum out/* | tee out/SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
