@@ -13,6 +13,7 @@
 import argparse
 import importlib
 import json
+import io
 import os
 import sys
 import threading
@@ -104,6 +105,24 @@ def selftest_report():
     return rep
 
 
+def _detach_stdin():
+    """把命令管道移到私有文件描述符，标准输入改指 NUL。
+
+    Windows 上主线程在管道上同步 ReadFile 时，其他线程对同一句柄的任何操作
+    （导入扩展模块时查询标准句柄、启动 ffmpeg 子进程继承句柄等）都会被阻塞，
+    直到下一行命令到来——表现为第一条命令要等很久才返回。
+    """
+    try:
+        fd = os.dup(0)
+        nul = os.open(os.devnull, os.O_RDONLY)
+        os.dup2(nul, 0)
+        os.close(nul)
+        sys.stdin = open(os.devnull, "r", encoding="utf-8")
+        return io.TextIOWrapper(io.FileIO(fd, "rb", closefd=True), encoding="utf-8", newline=None)
+    except Exception:
+        return sys.stdin
+
+
 class Server:
     def __init__(self):
         self.tasks = {}
@@ -157,8 +176,9 @@ class Server:
         threading.Thread(target=work, daemon=True).start()
 
     def loop(self):
+        reader = _detach_stdin()
         _write({"id": "", "event": "ready", "data": {"version": _version()}})
-        for line in sys.stdin:
+        for line in reader:
             line = line.strip()
             if not line:
                 continue
