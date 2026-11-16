@@ -5,6 +5,11 @@ name: Windows 冒烟测试（真实 Windows 运行器）
 # 并在 Windows 上原生运行 Go 单元测试。截图、日志与通过测试的安装包作为 artifact 上传。
 on:
   workflow_dispatch:
+    inputs:
+      release:
+        description: "测试通过后发布 GitHub Release（版本号取 wails.json）"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -119,3 +124,49 @@ jobs:
           path: ${{ runner.temp }}/build/*
           compression-level: 0
           retention-days: 30
+
+  release:
+    needs: smoke
+    if: ${{ inputs.release }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-build
+          path: out
+      - name: 整理发布文件
+        id: tag
+        run: |
+          echo "tag=v$(sed -n 's/.*"productVersion": *"\([^"]*\)".*/\1/p' wails.json | head -1)" >> "$GITHUB_OUTPUT"
+          mkdir dist
+          cp out/DesktopToolbox-Setup-x64.exe "dist/桌面工具箱-Setup-x64.exe"
+          cp out/DesktopToolbox-Portable-x64.zip "dist/桌面工具箱-便携版-x64.zip"
+          (cd dist && sha256sum * > SHA256SUMS.txt)
+          ls -la dist
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: 桌面工具箱 ${{ steps.tag.outputs.tag }}（Windows x64）
+          target_commitish: ${{ github.sha }}
+          files: dist/*
+          fail_on_unmatched_files: true
+          body: |
+            ## 下载（Windows 10/11 x64）
+
+            | 文件 | 说明 |
+            | --- | --- |
+            | `桌面工具箱-Setup-x64.exe` | 安装包（约 93 MB），双击安装 |
+            | `桌面工具箱-便携版-x64.zip` | 便携版，解压即用 |
+
+            ## 0.2.0 新功能（全部本地离线）
+            - 截图工具栏：存桌面、截图识字（中英文、链接可点）、翻译（英⇄中）、改写（润色/精简/扩写/正式 + 自定义指令）
+            - 图片转 Word / Excel（表格为真表格），扫描版 PDF 转 Word（OCR）
+            - 去水印（画笔涂抹 + LaMa 修补，仅处理你有权使用的图片）
+            - 会议记录：逐字稿、说话人与时间戳、本地模型生成摘要/要点/待办，导出 DOCX / MD
+            - 新图标
+
+            AI 组件和模型在首次使用对应功能时下载，有进度显示，之后完全离线。
+            已在 GitHub Actions windows-latest 上通过安装、启动、各工具页、卸载与 AI 引擎真实模型冒烟测试。
