@@ -218,7 +218,8 @@ echo "==> 7/7 打包"
 rm -f "$DEB"
 dpkg-deb --root-owner-group -Zxz -z9 --build "$PKGROOT" "$DEB"
 dpkg-deb -I "$DEB"
-dpkg-deb -c "$DEB" | grep -v '/python/lib/' | head -60
+# 只看前 60 行；不用 head（pipefail 下 head 提前退出会让 dpkg-deb 收到 SIGPIPE，脚本以 141 失败）
+dpkg-deb -c "$DEB" | grep -v '/python/lib/' | sed -n '1,60p'
 ls -la "$DEB"
 du -sh "$PKGROOT$APPDIR"
 sha256sum "$DEB"

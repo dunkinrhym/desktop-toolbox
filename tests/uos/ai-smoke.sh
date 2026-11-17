@@ -25,8 +25,8 @@ echo "== 1. 下载 AI 组件（linux-$(uname -m)，真实清单）"
 t0=$SECONDS
 "$DTAI" install -root "$ROOT" py-ort py-ocr py-speech m-table m-lama m-asr m-diar llama "$LLM"
 echo "下载 + 安装用时 $((SECONDS - t0)) 秒"
-du -sh "$ROOT"/*/* 2>/dev/null | sort -h | tail -20
-ls -la "$ROOT/bin/llama"/* | head -5
+du -sh "$ROOT"/*/* 2>/dev/null | sort -h | tail -20 || true
+ls -la "$ROOT/bin/llama"/* | sed -n '1,5p'
 
 echo "== 2. 准备测试素材（多说话人中文录音 → 录屏 MP4、扫描版 PDF）"
 mkdir -p "$OUT/media"
