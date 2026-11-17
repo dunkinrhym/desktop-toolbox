@@ -27,6 +27,9 @@ step() {
 shot() { ffmpeg -loglevel error -y -f x11grab -video_size "$(xdpyinfo_size)" -i "$DISPLAY" -frames:v 1 "$OUT/$1.png" 2>/dev/null || true; }
 xdpyinfo_size() { echo "1366x768"; }
 
+# 与统信 UOS 桌面一致的中文 UTF-8 环境（su - 会清空环境变量）
+export LANG=zh_CN.UTF-8 LC_ALL=zh_CN.UTF-8 LANGUAGE=zh_CN
+
 # ---- 图形会话：Xvfb（1366×768）+ openbox 窗口管理器 + XEmbed 托盘 + PulseAudio（空设备）+ D-Bus 会话总线
 export DISPLAY=:99
 Xvfb :99 -screen 0 1366x768x24 -nolisten tcp >"$OUT/xvfb.log" 2>&1 &

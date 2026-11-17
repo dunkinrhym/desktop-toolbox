@@ -35,7 +35,9 @@ if grep -q '^10\.' /etc/debian_version 2>/dev/null && grep -q buster /etc/apt/so
 fi
 apt-get -o Acquire::Check-Valid-Until=false update -q >/dev/null
 apt-get install -y -q --no-install-recommends xvfb xauth xdotool xclip dbus dbus-x11 openbox stalonetray pulseaudio \
-  procps desktop-file-utils fonts-wqy-microhei unzip ca-certificates >/dev/null || { log "FAIL  测试工具安装失败"; exit 1; }
+  procps desktop-file-utils fonts-wqy-microhei unzip ca-certificates locales >/dev/null || { log "FAIL  测试工具安装失败"; exit 1; }
+# 统信 UOS 默认 zh_CN.UTF-8；C locale 下 buster 的 xdotool 按中文窗口标题搜索会失败
+sed -i 's/^# *zh_CN.UTF-8 UTF-8/zh_CN.UTF-8 UTF-8/' /etc/locale.gen && locale-gen >/dev/null
 
 install_deb() {
   apt-get install -y -q "$DEB" 2>&1 | tail -3

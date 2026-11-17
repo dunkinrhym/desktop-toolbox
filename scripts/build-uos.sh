@@ -195,9 +195,15 @@ SH
 cat > "$PKGROOT/DEBIAN/prerm" <<SH
 #!/bin/sh
 set -e
-# 卸载（非升级）时结束正在运行的桌面工具箱
-if [ "\$1" = remove ] && command -v pkill >/dev/null 2>&1; then
-  pkill -x "$PKG" || true
+# 卸载（非升级）时结束正在运行的桌面工具箱。
+# 不能用 pkill -x：本脚本 desktop-toolbox.prerm 的进程名被内核截断为 15 字符后正好是 desktop-toolbox，会把自己杀掉。
+# 按可执行文件路径匹配，并跳过自身。
+if [ "\$1" = remove ]; then
+  for d in /proc/[0-9]*; do
+    p="\${d#/proc/}"
+    [ "\$p" = "\$\$" ] && continue
+    [ "\$(readlink "\$d/exe" 2>/dev/null)" = "$APPDIR/files/bin/$PKG" ] && kill "\$p" 2>/dev/null || true
+  done
 fi
 exit 0
 SH
