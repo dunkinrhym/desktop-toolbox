@@ -68,5 +68,9 @@ jobs:
               --title "llama.cpp $LLAMA_TAG（Linux glibc 2.28，统信 UOS 用 AI 组件）" \
               --notes "桌面工具箱 UOS 版的离线 AI 组件：llama.cpp $LLAMA_TAG 的 llama-server（CPU，多指令集变体自动选择），在 manylinux_2_28 中编译，兼容 glibc 2.28（UOS 20 / Debian 10）。由程序在首次使用翻译 / 改写 / 会议纪要时自动下载，无需手动安装。"
           fi
-          gh release upload "$T" dist/*.tar.gz --repo "$REPO" --clobber
+          # 已发布的资产不覆盖（manifest.json 里记录了它们的 SHA256）；换版本请改 LLAMA_TAG
+          have=$(gh release view "$T" --repo "$REPO" --json assets --jq '.assets[].name')
+          for f in dist/*.tar.gz; do
+            if echo "$have" | grep -qx "$(basename "$f")"; then echo "已存在，跳过：$(basename "$f")"; else gh release upload "$T" "$f" --repo "$REPO"; fi
+          done
           gh release view "$T" --repo "$REPO" --json assets --jq '.assets[] | [.name, .size, .digest, .url] | @tsv'
