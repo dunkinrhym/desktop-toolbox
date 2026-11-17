@@ -39,7 +39,11 @@ func smokeEnv(t *testing.T) (*Engine, string, string) {
 	if ff == "" {
 		ff = "ffmpeg"
 	}
-	e := &Engine{Python: py, Script: filepath.Join(repo, "ai-engine", "dtai_main.py"), Root: root, FFmpeg: ff}
+	script := filepath.Join(repo, "ai-engine", "dtai_main.py")
+	if s := os.Getenv("DT_AI_SCRIPT"); s != "" { // 测试安装包里的引擎副本（如 UOS deb 的 /opt/apps/.../ai-engine）
+		script = s
+	}
+	e := &Engine{Python: py, Script: script, Root: root, FFmpeg: ff}
 	t.Cleanup(e.Stop)
 	return e, filepath.Join(repo, "ai-engine", "tests", "samples"), out
 }

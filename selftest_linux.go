@@ -435,7 +435,7 @@ func (s *selfTest) run(app *App, outDir string) int {
 			"报告 Alpha.txt":                 "nothing",
 			"子目录/beta 报告.md":               "内容含有 关键字XYZ 的一行",
 			"子目录/node_modules/报告 skip.txt": "关键字XYZ",
-			".隐藏/报告 hidden.txt":             "关键字XYZ",
+			".隐藏/报告 hidden.txt":            "关键字XYZ",
 			"子目录/other.log":                "line\n关键字xyz here",
 			"子目录/utf16.txt":                "\xff\xfe" + utf16le("UTF16 关键字XYZ"),
 			"unrelated.bin":                "x",

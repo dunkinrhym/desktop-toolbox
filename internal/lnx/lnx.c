@@ -228,7 +228,15 @@ int lnx_win_state(const char *title) {
     GdkWindow *gw = gtk_widget_get_window(GTK_WIDGET(w));
     if (!gw || !(gdk_window_get_state(gw) & (GDK_WINDOW_STATE_ICONIFIED | GDK_WINDOW_STATE_WITHDRAWN))) st |= 1;
   }
-  if (gtk_window_is_active(w)) st |= 2;
+  // 激活状态以窗口管理器的 _NET_ACTIVE_WINDOW 为准：热键按下时键盘被动抓取会让 GTK 暂时认为窗口失去焦点
+  GdkWindow *gw = gtk_widget_get_window(GTK_WIDGET(w));
+  GdkWindow *act = gdk_screen_get_active_window(gdk_screen_get_default());
+  if (act) {
+    if (gw && GDK_IS_X11_WINDOW(gw) && GDK_IS_X11_WINDOW(act) && GDK_WINDOW_XID(act) == GDK_WINDOW_XID(gw)) st |= 2;
+    g_object_unref(act);
+  } else if (gtk_window_is_active(w)) {
+    st |= 2;
+  }
   return st;
 }
 

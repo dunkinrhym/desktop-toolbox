@@ -907,26 +907,26 @@
     ],
     "linux-arm64": [
      {
-      "name": "llama-b12438-bin-ubuntu-arm64.tar.gz",
-      "size": 19096355,
-      "sha256": "c527be585053da8edd5649080774c7a3f000cb2419c44116f51b3f96484dd29f",
+      "name": "llama-b12438-bin-linux-glibc2.28-arm64.tar.gz",
+      "size": 12814102,
+      "sha256": "e72ead5d8ee24418acf8a360f6c8ca5d0db837dbde55d9386f867c1679e8f0dd",
       "urls": [
-       "https://github.com/ggml-org/llama.cpp/releases/download/b12438/llama-b12438-bin-ubuntu-arm64.tar.gz",
-       "https://ghfast.top/https://github.com/ggml-org/llama.cpp/releases/download/b12438/llama-b12438-bin-ubuntu-arm64.tar.gz",
-       "https://gh-proxy.com/https://github.com/ggml-org/llama.cpp/releases/download/b12438/llama-b12438-bin-ubuntu-arm64.tar.gz"
+       "https://github.com/dunkinrhym/desktop-toolbox/releases/download/llama-linux-b12438/llama-b12438-bin-linux-glibc2.28-arm64.tar.gz",
+       "https://ghfast.top/https://github.com/dunkinrhym/desktop-toolbox/releases/download/llama-linux-b12438/llama-b12438-bin-linux-glibc2.28-arm64.tar.gz",
+       "https://gh-proxy.com/https://github.com/dunkinrhym/desktop-toolbox/releases/download/llama-linux-b12438/llama-b12438-bin-linux-glibc2.28-arm64.tar.gz"
       ],
       "extract": "tgz"
      }
     ],
     "linux-amd64": [
      {
-      "name": "llama-b12438-bin-ubuntu-x64.tar.gz",
-      "size": 23466824,
-      "sha256": "8210f3f746e70ebfd2b79c6b76ffc3d76c8fd272d822cf766691bdc789063949",
+      "name": "llama-b12438-bin-linux-glibc2.28-x64.tar.gz",
+      "size": 17518738,
+      "sha256": "336af08bf520ae30b10d1e8c45f3e0338de8544bf0cdfd9eebdb47622737c392",
       "urls": [
-       "https://github.com/ggml-org/llama.cpp/releases/download/b12438/llama-b12438-bin-ubuntu-x64.tar.gz",
-       "https://ghfast.top/https://github.com/ggml-org/llama.cpp/releases/download/b12438/llama-b12438-bin-ubuntu-x64.tar.gz",
-       "https://gh-proxy.com/https://github.com/ggml-org/llama.cpp/releases/download/b12438/llama-b12438-bin-ubuntu-x64.tar.gz"
+       "https://github.com/dunkinrhym/desktop-toolbox/releases/download/llama-linux-b12438/llama-b12438-bin-linux-glibc2.28-x64.tar.gz",
+       "https://ghfast.top/https://github.com/dunkinrhym/desktop-toolbox/releases/download/llama-linux-b12438/llama-b12438-bin-linux-glibc2.28-x64.tar.gz",
+       "https://gh-proxy.com/https://github.com/dunkinrhym/desktop-toolbox/releases/download/llama-linux-b12438/llama-b12438-bin-linux-glibc2.28-x64.tar.gz"
       ],
       "extract": "tgz"
      }

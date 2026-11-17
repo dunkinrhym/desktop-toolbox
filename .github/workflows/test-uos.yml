@@ -1,0 +1,199 @@
+name: 统信 UOS 构建与冒烟测试（amd64 / arm64 .deb）
+
+# 在 debian:buster 容器（UOS 20 桌面版的 Debian 10 基线：glibc 2.28、webkit2gtk-4.0）里用 scripts/build-uos.sh 构建 deb；
+# 冒烟：全新 buster 容器 + Xvfb + openbox + D-Bus + PulseAudio + XEmbed 托盘中 apt 安装 → 自检 → 启动 → 逐页打开 → 单实例 →
+# 热键截图 / 剪贴板历史 / 小窗 → 转换 → 退出 → 卸载干净；AI：真实下载 linux 组件跑识字 / 文档 / 去水印 / 转写 / 翻译 / 改写 / 纪要。
+# release=true 时把两个 deb 追加到已有的 Release v<版本>（保留 Windows 附件，更新 SHA256SUMS.txt）。
+on:
+  workflow_dispatch:
+    inputs:
+      release:
+        description: "测试通过后把两个 deb 上传到已有的 Release v<版本>"
+        type: boolean
+        default: false
+  push:
+    branches: [feature/uos]
+    paths-ignore:
+      - "**.md"
+      - ".github/workflows/build-llama-linux.yml"
+      - "scripts/build-llama-linux.sh"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-uos-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GO_VERSION: "1.27.x"
+  LLM: llm-0.6b
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: third_party/uos-dl
+          key: uos-dl-${{ matrix.arch }}-v1
+      - name: 构建 deb（debian:buster 容器）
+        run: docker run --rm -v "$PWD:/w" -w /w debian:buster bash scripts/build-uos.sh
+      - name: 整理
+        run: |
+          sudo chown -R "$(id -u):$(id -g)" dist build third_party
+          ls -la dist
+          (cd dist && sha256sum *.deb)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: uos-${{ matrix.arch }}
+          path: dist/*.deb
+          compression-level: 0
+          retention-days: 30
+          if-no-files-found: error
+
+  smoke:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: uos-${{ matrix.arch }}
+          path: dist
+      - name: 冒烟测试（全新 debian:buster：安装 / 自检 / 界面 / 热键 / 剪贴板 / 转换 / 卸载）
+        run: |
+          deb=$(ls dist/*.deb)
+          docker run --rm -v "$PWD:/w" -w /w debian:buster bash tests/uos/smoke.sh "$deb" /w/smoke-out
+      - name: 结果
+        if: always()
+        run: |
+          sudo chown -R "$(id -u):$(id -g)" smoke-out 2>/dev/null || true
+          cat smoke-out/smoke.log 2>/dev/null || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: uos-smoke-${{ matrix.arch }}
+          path: smoke-out
+          retention-days: 14
+
+  ai-smoke:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: uos-${{ matrix.arch }}
+          path: dist
+      - name: AI 下载器单元测试 + 编译 dtai / 引擎测试程序（静态）
+        run: |
+          go test -count=1 ./internal/aiengine/...
+          mkdir -p "$RUNNER_TEMP/bin"
+          CGO_ENABLED=0 go build -o "$RUNNER_TEMP/bin/dtai" ./internal/aiengine/cmd/dtai
+          CGO_ENABLED=0 go test -c -o "$RUNNER_TEMP/bin/aiengine.test" ./internal/aiengine/
+      - uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/ai/.downloads
+          key: ai-dl-linux-${{ matrix.arch }}-${{ env.LLM }}-${{ hashFiles('internal/aiengine/manifest.json') }}
+      - name: AI 冒烟（debian:buster + 安装包内 Python，真实模型）
+        run: |
+          deb=$(ls dist/*.deb)
+          docker run --rm -v "$PWD:$PWD" -w "$PWD" -v "$RUNNER_TEMP:$RUNNER_TEMP" debian:buster \
+            bash tests/uos/ai-smoke.sh "$deb" "$RUNNER_TEMP/ai" "$RUNNER_TEMP/ai-out" "$RUNNER_TEMP/bin/dtai" "$RUNNER_TEMP/bin/aiengine.test" "$LLM"
+      - name: 整理
+        if: always()
+        run: sudo chown -R "$(id -u):$(id -g)" "$RUNNER_TEMP/ai" "$RUNNER_TEMP/ai-out" 2>/dev/null || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: uos-ai-smoke-${{ matrix.arch }}
+          path: |
+            ${{ runner.temp }}/ai-out
+            !${{ runner.temp }}/ai-out/media
+          retention-days: 14
+
+  release:
+    needs: [smoke, ai-smoke]
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.release }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: uos-amd64
+          path: dist
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: uos-arm64
+          path: dist
+      - name: 追加到 Release v<版本>（保留已有附件，更新 SHA256SUMS.txt）
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          V="$(sed -n 's/.*"productVersion": *"\([^"]*\)".*/\1/p' wails.json | head -1)"
+          T="v$V"
+          mkdir -p up
+          cp dist/uos-amd64/DesktopToolbox-$V-UOS-amd64.deb dist/uos-arm64/DesktopToolbox-$V-UOS-arm64.deb up/
+          gh release view "$T" --repo "$REPO" --json assets --jq '.assets[].name'
+          gh release download "$T" --repo "$REPO" -p SHA256SUMS.txt -D old || true
+          touch old/SHA256SUMS.txt
+          grep -v -- '-UOS-' old/SHA256SUMS.txt > up/SHA256SUMS.txt || true
+          (cd up && sha256sum DesktopToolbox-$V-UOS-*.deb >> SHA256SUMS.txt)
+          cat up/SHA256SUMS.txt
+          gh release upload "$T" --repo "$REPO" --clobber up/DesktopToolbox-$V-UOS-amd64.deb up/DesktopToolbox-$V-UOS-arm64.deb up/SHA256SUMS.txt
+          gh release view "$T" --repo "$REPO" --json body --jq .body > notes.md
+          if ! grep -q '统信 UOS' notes.md; then
+            sz() { numfmt --to=iec --suffix=B "$(stat -c %s "$1")"; }
+            cat >> notes.md <<EOF
+
+          ## 统信 UOS / Linux（.deb，amd64 与 arm64）
+
+          | 文件 | 说明 |
+          | --- | --- |
+          | \`DesktopToolbox-$V-UOS-amd64.deb\` | x86_64（Intel / AMD / 兆芯 / 海光），约 $(sz up/DesktopToolbox-$V-UOS-amd64.deb) |
+          | \`DesktopToolbox-$V-UOS-arm64.deb\` | ARM64（鲲鹏 / 飞腾等），约 $(sz up/DesktopToolbox-$V-UOS-arm64.deb) |
+
+          - 适用于统信 UOS 20 桌面版（X11 会话）及 Debian 10+ / deepin 等；双击 deb 用“软件包安装器”安装，或 \`sudo apt install ./DesktopToolbox-$V-UOS-amd64.deb\`（自动安装 WebKitGTK、FFmpeg 等依赖）。
+          - 安装后在启动器中名为「桌面工具箱」，程序位于 \`/opt/apps/desktop-toolbox\`；快捷键 Alt+空格（主窗口）、Ctrl+Alt+A（截图，被系统截图占用时为 Ctrl+Shift+A）、Ctrl+Shift+V（剪贴板历史）。
+          - AI 组件与模型同样在首次使用时下载（Linux 专用包），之后完全离线。
+          - 已在 GitHub Actions 的 Debian 10（glibc 2.28）容器中通过安装、自检、各工具页、热键截图、剪贴板历史、转换、录屏、卸载与 AI 真实模型冒烟测试。
+          EOF
+            sed -i 's/^          //' notes.md
+            gh release edit "$T" --repo "$REPO" --notes-file notes.md
+          fi
+          gh release view "$T" --repo "$REPO" --json assets --jq '.assets[] | [.name, .size, .url] | @tsv'

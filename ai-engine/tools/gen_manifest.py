@@ -40,8 +40,14 @@ HFM = "https://hf-mirror.com/"
 MS = "https://www.modelscope.cn/models/"
 
 LLAMA_TAG = "b12438"
-LLAMA_ASSETS = {"windows-amd64": "llama-%s-bin-win-cpu-x64.zip", "linux-arm64": "llama-%s-bin-ubuntu-arm64.tar.gz",
-                "linux-amd64": "llama-%s-bin-ubuntu-x64.tar.gz"}
+# 平台键 → (GitHub 仓库, Release 标签, 资产名)。官方 ubuntu 预编译包需要 glibc 2.35+，统信 UOS 20（Debian 10，glibc 2.28）
+# 无法运行，Linux 使用 .github/workflows/build-llama-linux.yml 在 manylinux_2_28 中自行编译、发布到本仓库预发布 Release 的版本。
+LLAMA_LINUX_REPO = "dunkinrhym/desktop-toolbox"
+LLAMA_ASSETS = {
+    "windows-amd64": ("ggml-org/llama.cpp", LLAMA_TAG, "llama-%s-bin-win-cpu-x64.zip" % LLAMA_TAG),
+    "linux-amd64": (LLAMA_LINUX_REPO, "llama-linux-" + LLAMA_TAG, "llama-%s-bin-linux-glibc2.28-x64.tar.gz" % LLAMA_TAG),
+    "linux-arm64": (LLAMA_LINUX_REPO, "llama-linux-" + LLAMA_TAG, "llama-%s-bin-linux-glibc2.28-arm64.tar.gz" % LLAMA_TAG),
+}
 
 
 def get(url):
@@ -106,12 +112,16 @@ def ms_file(repo, path, dest, rev="master"):
 
 
 def llama_files():
-    rel = getj("https://api.github.com/repos/ggml-org/llama.cpp/releases/tags/" + LLAMA_TAG)
-    assets = {a["name"]: a for a in rel["assets"]}
+    rels = {}
     out = {}
-    for plat, pat in LLAMA_ASSETS.items():
-        a = assets[pat % LLAMA_TAG]
+    for plat, (repo, tag, name) in LLAMA_ASSETS.items():
+        if (repo, tag) not in rels:
+            rels[(repo, tag)] = getj("https://api.github.com/repos/%s/releases/tags/%s" % (repo, tag))
+        assets = {a["name"]: a for a in rels[(repo, tag)]["assets"]}
+        a = assets[name]
         sha = (a.get("digest") or "").replace("sha256:", "")
+        if not sha:
+            sha = hashlib.sha256(get(a["browser_download_url"])).hexdigest()
         url = a["browser_download_url"]
         out[plat] = [{"name": a["name"], "size": a["size"], "sha256": sha,
                       "urls": [url, "https://ghfast.top/" + url, "https://gh-proxy.com/" + url],
