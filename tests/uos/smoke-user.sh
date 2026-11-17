@@ -58,7 +58,7 @@ session() {
     local rc=$?
     cat "$OUT/selftest/selftest.log"
     [ $rc -eq 0 ] || return 1
-    grep -q 'embedded in system tray: true' "$OUT/selftest/selftest.log" || { echo "托盘图标没有嵌入 XEmbed 系统托盘"; return 1; }
+    # 托盘是否嵌入在下面“托盘图标”一步对正式运行的程序检查（自检里临时图标的嵌入标记在 CI 上不稳定，只作参考）
     grep -q 'h264+aac' "$OUT/selftest/selftest.log" || { echo "录屏没有音轨（PulseAudio）"; return 1; }
     echo "自检全部通过（热键 / 剪贴板 / 截屏 / 框选遮罩 / 托盘 / 搜索 / Python / x11grab+pulse 录屏）"
   }
@@ -80,6 +80,19 @@ session() {
     cat "$OUT/app.log"; return 1
   }
   step "启动并显示主窗口" launch
+
+  tray() {
+    local w i
+    w=$(xdotool search --classname stalonetray | sed -n '1p')
+    [ -n "$w" ] || { echo "没有找到 stalonetray 托盘窗口"; return 1; }
+    for i in $(seq 40); do
+      xwininfo -tree -id "$w" | grep -q '("desktop-toolbox" "desktop-toolbox")' && break
+      sleep 0.25
+    done
+    xwininfo -tree -id "$w" | grep '("desktop-toolbox" "desktop-toolbox")' >/dev/null || { xwininfo -tree -id "$w"; echo "托盘图标没有嵌入 XEmbed 系统托盘"; return 1; }
+    echo "托盘图标已嵌入 XEmbed 系统托盘（stalonetray）"
+  }
+  step "托盘图标" tray
 
   pages() {
     local v n=0
