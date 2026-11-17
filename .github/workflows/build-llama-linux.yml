@@ -1,0 +1,72 @@
+name: 编译 llama.cpp（Linux glibc 2.28，统信 UOS 用）
+
+# 官方 llama.cpp 的 ubuntu 预编译包需要 glibc 2.35+，UOS 20（Debian 10 基线，glibc 2.28）无法运行。
+# 本工作流在 manylinux_2_28 容器中编译 llama-server（x64 / arm64），在 debian:buster 中验证可运行，
+# 然后上传到本仓库的预发布 Release “llama-linux-<标签>”，供 internal/aiengine/manifest.json 的 linux-* 条目下载。
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/uos]
+    paths:
+      - scripts/build-llama-linux.sh
+      - .github/workflows/build-llama-linux.yml
+
+permissions:
+  contents: read
+
+env:
+  LLAMA_TAG: b12438
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: ubuntu-latest
+            image: quay.io/pypa/manylinux_2_28_x86_64
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+            image: quay.io/pypa/manylinux_2_28_aarch64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: 编译（manylinux_2_28 容器）
+        run: docker run --rm -e LLAMA_TAG -v "$PWD:/w" -w /w ${{ matrix.image }} bash scripts/build-llama-linux.sh ${{ matrix.arch }}
+      - name: 在 debian:buster（glibc 2.28）中验证可运行
+        run: |
+          f=$(ls dist/llama-*.tar.gz)
+          docker run --rm -v "$PWD/dist:/d" debian:buster bash -c "set -e; cd /tmp; tar xzf /d/$(basename $f); cd llama-*; ldd ./llama-server; ./llama-server --version; ./llama-server --list-devices || true"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: llama-linux-${{ matrix.arch }}
+          path: dist/llama-*.tar.gz
+          compression-level: 0
+          retention-days: 30
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: 上传到预发布 Release llama-linux-${{ env.LLAMA_TAG }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          T="llama-linux-$LLAMA_TAG"
+          ls -la dist && (cd dist && sha256sum *)
+          if ! gh release view "$T" --repo "$REPO" >/dev/null 2>&1; then
+            gh release create "$T" --repo "$REPO" --target "$GITHUB_SHA" --prerelease --latest=false \
+              --title "llama.cpp $LLAMA_TAG（Linux glibc 2.28，统信 UOS 用 AI 组件）" \
+              --notes "桌面工具箱 UOS 版的离线 AI 组件：llama.cpp $LLAMA_TAG 的 llama-server（CPU，多指令集变体自动选择），在 manylinux_2_28 中编译，兼容 glibc 2.28（UOS 20 / Debian 10）。由程序在首次使用翻译 / 改写 / 会议纪要时自动下载，无需手动安装。"
+          fi
+          gh release upload "$T" dist/*.tar.gz --repo "$REPO" --clobber
+          gh release view "$T" --repo "$REPO" --json assets --jq '.assets[] | [.name, .size, .digest, .url] | @tsv'

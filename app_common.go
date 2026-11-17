@@ -1,4 +1,4 @@
-//go:build windows || darwin
+//go:build windows || darwin || linux
 
 package main
 
@@ -12,7 +12,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
-// 本文件为 Windows 与 macOS 共用的绑定类型与工具函数；平台相关部分见 *_windows.go / *_darwin.go。
+// 本文件为 Windows、macOS 与 Linux 共用的绑定类型与工具函数；平台相关部分见 *_windows.go / *_darwin.go / *_linux.go。
 
 // Settings 持久化的用户设置。
 type Settings struct {
@@ -65,7 +65,7 @@ type AppInfo struct {
 	HasFFmpeg  bool         `json:"hasFfmpeg"`
 	ClipOn     bool         `json:"clipOn"`
 	InitErrors []string     `json:"initErrors"`
-	Platform   string       `json:"platform"` // windows | darwin
+	Platform   string       `json:"platform"` // windows | darwin | linux
 	ScreenOK   bool         `json:"screenOk"` // macOS：是否已获得“屏幕录制”权限
 }
 
