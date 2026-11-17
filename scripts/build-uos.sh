@@ -19,7 +19,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 export DEBIAN_FRONTEND=noninteractive
-VERSION="$(sed -n 's/.*"productVersion": *"\([^"]*\)".*/\1/p' wails.json | head -1)"
+VERSION="$(sed -n 's/.*"productVersion": *"\([^"]*\)".*/\1/p' wails.json | sed -n '1p')"
 PKG=desktop-toolbox
 APPDIR="/opt/apps/$PKG"
 case "$(uname -m)" in
@@ -44,12 +44,12 @@ fi
 apt-get -o Acquire::Check-Valid-Until=false update -q
 apt-get install -y -q --no-install-recommends build-essential pkg-config ca-certificates curl xz-utils git file \
   libgtk-3-dev libwebkit2gtk-4.0-dev libx11-dev libxtst-dev dpkg-dev imagemagick
-cat /etc/debian_version; ldd --version | head -1
+cat /etc/debian_version; ldd --version | sed -n '1p'
 pkg-config --modversion gtk+-3.0 webkit2gtk-4.0
 
 echo "==> 2/7 Go"
 if ! command -v go >/dev/null; then
-  GOV="${GO_VERSION_FULL:-$(curl -fsSL 'https://go.dev/VERSION?m=text' | head -1)}"
+  GOV="${GO_VERSION_FULL:-$(curl -fsSL 'https://go.dev/VERSION?m=text' | sed -n '1p')}"
   [ -f "$DL/$GOV.linux-$GO_ARCH.tar.gz" ] || curl -fsSL --retry 3 -o "$DL/$GOV.linux-$GO_ARCH.tar.gz" "https://go.dev/dl/$GOV.linux-$GO_ARCH.tar.gz"
   rm -rf /usr/local/go && tar -C /usr/local -xzf "$DL/$GOV.linux-$GO_ARCH.tar.gz"
   export PATH=/usr/local/go/bin:$PATH

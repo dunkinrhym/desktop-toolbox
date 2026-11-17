@@ -17,7 +17,7 @@ fi
 apt-get -o Acquire::Check-Valid-Until=false update -q >/dev/null
 apt-get install -y -q --no-install-recommends ca-certificates curl >/dev/null
 apt-get install -y -q "$DEB" >/dev/null
-echo "== $(grep PRETTY_NAME /etc/os-release) / $(uname -m) / $(ldd --version | head -1) / $(nproc) CPU / $(awk '/MemTotal/{printf "%.1f", $2/1048576}' /proc/meminfo) GB"
+echo "== $(grep PRETTY_NAME /etc/os-release) / $(uname -m) / $(ldd --version | sed -n '1p') / $(nproc) CPU / $(awk '/MemTotal/{printf "%.1f", $2/1048576}' /proc/meminfo) GB"
 "$PY" -c 'import sys; print(sys.version)'
 
 echo "== 1. 下载 AI 组件（linux-$(uname -m)，真实清单）"

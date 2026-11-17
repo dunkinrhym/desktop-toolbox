@@ -29,7 +29,7 @@ step() { # step <名称> <命令...>
 }
 export DEBIAN_FRONTEND=noninteractive
 
-log "== 系统：$(cat /etc/os-release | grep PRETTY_NAME | cut -d= -f2) / $(uname -m) / $(ldd --version | head -1)"
+log "== 系统：$(cat /etc/os-release | grep PRETTY_NAME | cut -d= -f2) / $(uname -m) / $(ldd --version | sed -n '1p')"
 if grep -q '^10\.' /etc/debian_version 2>/dev/null && grep -q buster /etc/apt/sources.list 2>/dev/null; then
   printf 'deb http://archive.debian.org/debian buster main\ndeb http://archive.debian.org/debian-security buster/updates main\n' > /etc/apt/sources.list
 fi

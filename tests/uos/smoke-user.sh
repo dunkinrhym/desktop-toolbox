@@ -111,7 +111,7 @@ session() {
     xdotool mousemove 200 150 mousedown 1 mousemove 350 250 mousemove 520 380 mouseup 1
     sleep 0.6; shot "02-screenshot-toolbar"
     xdotool key Return; sleep 1.2
-    xclip -selection clipboard -t TARGETS -o | grep -q 'image/png' || { echo "剪贴板里没有图片"; return 1; }
+    xclip -selection clipboard -t TARGETS -o | grep 'image/png' >/dev/null || { echo "剪贴板里没有图片"; return 1; }
     xclip -selection clipboard -t image/png -o > "$OUT/clip-shot.png"
     local sz; sz=$("$PY" -c 'import struct,sys; d=open(sys.argv[1],"rb").read(24); print("%dx%d" % struct.unpack(">II", d[16:24]))' "$OUT/clip-shot.png")
     [ "$sz" = "320x230" ] || { echo "截图尺寸 $sz（期望 320x230）"; return 1; }
@@ -130,7 +130,7 @@ session() {
     sleep 1.5
     grep -q "$t" "$HOME/.config/DesktopToolbox/clipboard/history.json" || { echo "其他程序复制的文本没有记入历史"; return 1; }
     xdotool key --clearmodifiers ctrl+shift+v; sleep 1.5
-    local wid; wid=$(xdotool search --onlyvisible --name '^桌面工具箱$' | head -1)
+    local wid; wid=$(xdotool search --onlyvisible --name '^桌面工具箱$' | sed -n '1p')
     local geo; geo=$(xdotool getwindowgeometry "$wid" | sed -n 's/.*Geometry: //p')
     shot "03-clipboard-popup"
     local w="${geo%x*}"
@@ -162,7 +162,7 @@ conv() { # conv <模式> <输入> <输出>
   local out
   out=$(cd "$(dirname "$CONV")" && PYTHONUTF8=1 "$PY" -B -s -X utf8 "$CONV" --mode "$1" ${2:+--input "$2"} ${3:+--output "$3"} 2>&1)
   echo "$out" | tail -2
-  echo "$out" | grep -q '"done"'
+  grep -q '"done"' <<<"$out"
 }
 docx_ok() { "$PY" -c 'import docx,sys; d=docx.Document(sys.argv[1]); n=len([p for p in d.paragraphs if p.text.strip()]); assert n>0, "空文档"; print(sys.argv[1], n, "段")' "$1"; }
 conv_docx() { conv "$1" "$2" "$3" && docx_ok "$3"; }
