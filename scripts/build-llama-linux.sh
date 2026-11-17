@@ -28,7 +28,7 @@ cmake -S "llama.cpp-$TAG" -B build -DCMAKE_BUILD_TYPE=Release \
   -DGGML_OPENMP=OFF -DLLAMA_CURL=OFF -DLLAMA_OPENSSL=OFF \
   -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_EXAMPLES=OFF -DLLAMA_BUILD_SERVER=ON \
   -DCMAKE_BUILD_RPATH='$ORIGIN' -DCMAKE_INSTALL_RPATH='$ORIGIN' -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON
-TARGETS="llama-server $(cmake --build build --target help | grep -o 'ggml-cpu[A-Za-z0-9_-]*' | sort -u | tr '\n' ' ')"
+TARGETS="llama-server $(cmake --build build --target help | grep -o 'ggml-cpu[A-Za-z0-9_.-]*' | sort -u | tr '\n' ' ')"
 echo "targets: $TARGETS"
 # shellcheck disable=SC2086
 cmake --build build -j"$(nproc)" --target $TARGETS
@@ -40,7 +40,7 @@ strip --strip-unneeded "$NAME"/llama-server "$NAME"/*.so* 2>/dev/null || true
 ls -la "$NAME"
 
 echo "==> glibc / libstdc++ 符号版本检查（UOS 20：GLIBC ≤ 2.28，GLIBCXX ≤ 3.4.25，CXXABI ≤ 1.3.11）"
-maxver() { objdump -T "$NAME"/* 2>/dev/null | grep -o "$1_[0-9.]*" | sed "s/$1_//" | sort -uV | tail -1; }
+maxver() { { objdump -T "$NAME"/llama-server "$NAME"/*.so* 2>/dev/null || true; } | grep -o "$1_[0-9.]*" | sed "s/$1_//" | sort -uV | tail -1 || true; }
 G="$(maxver GLIBC)"; X="$(maxver GLIBCXX)"; A="$(maxver CXXABI)"
 echo "GLIBC_$G GLIBCXX_$X CXXABI_$A"
 verle() { [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -1)" = "$2" ]; }
