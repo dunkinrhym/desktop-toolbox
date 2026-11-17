@@ -289,6 +289,19 @@ func (a *App) showClipPopup() {
 	runtime.WindowUnminimise(a.ctx)
 	time.Sleep(30 * time.Millisecond)
 	lnx.PresentWindow(AppName)
+	// 最小尺寸提示与改尺寸请求是异步的，窗口管理器偶尔仍按旧的最小宽度 860 处理改尺寸请求；稍后再确认一次。
+	go func() {
+		for _, d := range []time.Duration{150, 350} {
+			time.Sleep(d * time.Millisecond)
+			if !a.isPopup() {
+				return
+			}
+			if w, h := runtime.WindowGetSize(a.ctx); w != 440 || h != 640 {
+				runtime.WindowSetSize(a.ctx, 440, 640)
+				runtime.WindowCenter(a.ctx)
+			}
+		}
+	}()
 }
 
 // HideWindow 隐藏主窗口（前端 Esc / 弹出模式复制后）。窗口管理器会把焦点还给之前的程序，可直接 Ctrl+V。

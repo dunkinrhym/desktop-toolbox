@@ -49,6 +49,9 @@ session() {
   openbox --config-file "$HOME/.config/openbox/rc.xml" >"$OUT/openbox.log" 2>&1 &
   stalonetray --geometry 4x1+0+0 -bg '#333333' >"$OUT/tray.log" 2>&1 &
   sleep 1.5
+  # 等托盘程序真正接管 _NET_SYSTEM_TRAY_S0 再继续（慢的运行器上 1.5 秒不一定够）
+  for i in $(seq 40); do xdotool search --classname stalonetray >/dev/null 2>&1 && break; sleep 0.25; done
+  sleep 0.5
 
   st() {
     "$BIN" --selftest --selftest-out="$OUT/selftest" > "$OUT/selftest-console.log" 2>&1

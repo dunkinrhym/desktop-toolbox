@@ -414,8 +414,12 @@ func (s *selfTest) run(app *App, outDir string) int {
 
 	s.check("tray-icon", func() (string, error) {
 		lnx.ShowTray(AppName+" selftest", app.icon, []lnx.TrayItem{{ID: trayShow, Label: "显示主窗口"}, {}, {ID: trayQuit, Label: "退出"}})
-		time.Sleep(300 * time.Millisecond)
-		emb := lnx.TrayEmbedded()
+		// 托盘程序嵌入图标需要一点时间（慢机器 / 刚启动的托盘），最多等 3 秒
+		emb := false
+		for i := 0; i < 30 && !emb; i++ {
+			time.Sleep(100 * time.Millisecond)
+			emb = lnx.TrayEmbedded()
+		}
 		lnx.RemoveTray()
 		if !fileExists(app.icon) {
 			return "", fmt.Errorf("托盘图标文件不存在：%s", app.icon)
